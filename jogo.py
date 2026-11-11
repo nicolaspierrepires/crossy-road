@@ -1,0 +1,1 @@
+print("camelo e brito são gay")
