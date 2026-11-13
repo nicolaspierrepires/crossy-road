@@ -1,5 +1,6 @@
 import pygame
 import math
+import random
 
 pygame.init()
 
@@ -18,6 +19,35 @@ ALTURA_PULO = 18               # quantos pixels o personagem sobe no meio do pul
 VERDE_MESA = (20, 110, 60)
 VERDE_MESA_ESCURO = (15, 90, 50)
 SOMBRA = (10, 60, 30)
+CARPETE = (120, 25, 40)
+CARPETE_ESCURO = (100, 20, 35)
+SOMBRA_CARPETE = (70, 10, 20)
+PRETO_TERNO = (25, 25, 30)
+BRANCO = (240, 240, 240)
+PELE = (225, 180, 140)
+PRATA = (190, 190, 200)
+DOURADO_BEBIDA = (240, 200, 80)
+
+# --- Mapa da fase: o tipo de cada linha (linha 0 = topo da tela) ---
+# "seguro"  -> feltro verde, ninguém passa
+# "garcons" -> carpete vermelho, com garçons andando
+MAPA = [
+    "seguro",    # 0  (chegada)
+    "garcons",   # 1
+    "garcons",   # 2
+    "seguro",    # 3
+    "garcons",   # 4
+    "garcons",   # 5
+    "garcons",   # 6
+    "seguro",    # 7
+    "garcons",   # 8
+    "garcons",   # 9
+    "seguro",    # 10
+    "seguro",    # 11 (início)
+]
+
+# --- Garçons ---
+LARGURA_GARCOM = 40
 
 # --- Skin: separada do resto, para trocar fácil no futuro ---
 skin_atual = (230, 190, 60)    # por enquanto é só uma cor (dourado)
@@ -41,10 +71,33 @@ tempo_pulo = 0
 origem_x, origem_y = jogador_x, jogador_y
 destino_x, destino_y = jogador_x, jogador_y
 
+# --- Cria os garçons ---
+# Cada garçom é um dicionário: em que linha anda, posição x (pixels) e velocidade
+garcons = []
+for linha in range(LINHAS):
+    if MAPA[linha] != "garcons":
+        continue                       # pula as linhas que não são de garçom
+
+    velocidade = random.randint(90, 180)
+    if linha % 2 == 0:
+        velocidade = -velocidade       # linhas pares andam para a esquerda
+
+    quantidade = random.choice([2, 3])
+    espaco = (LARGURA + LARGURA_GARCOM) / quantidade
+    for i in range(quantidade):
+        garcons.append({
+            "linha": linha,
+            "x": i * espaco + random.uniform(0, espaco - 2 * TAMANHO_CASA),
+            "velocidade": velocidade,
+        })
+
 
 def desenhar_tabuleiro():
     for linha in range(LINHAS):
-        cor = VERDE_MESA if linha % 2 == 0 else VERDE_MESA_ESCURO
+        if MAPA[linha] == "garcons":
+            cor = CARPETE if linha % 2 == 0 else CARPETE_ESCURO
+        else:
+            cor = VERDE_MESA if linha % 2 == 0 else VERDE_MESA_ESCURO
         pygame.draw.rect(janela, cor, (0, linha * TAMANHO_CASA, LARGURA, TAMANHO_CASA))
 
 
@@ -62,6 +115,28 @@ def desenhar_jogador(x, y, altura_no_ar, esticar):
     corpo_x = x + (TAMANHO_CASA - largura_corpo) / 2
     corpo_y = y + TAMANHO_CASA - 8 - altura_corpo - altura_no_ar
     pygame.draw.rect(janela, skin_atual, (corpo_x, corpo_y, largura_corpo, altura_corpo), border_radius=6)
+
+
+def desenhar_garcom(garcom):
+    x = garcom["x"]
+    y = garcom["linha"] * TAMANHO_CASA
+
+    # Sombra no chão
+    pygame.draw.ellipse(janela, SOMBRA_CARPETE, (x + 2, y + TAMANHO_CASA - 14, LARGURA_GARCOM - 4, 10))
+    # Terno
+    pygame.draw.rect(janela, PRETO_TERNO, (x + 8, y + 12, 24, 30), border_radius=5)
+    # Camisa
+    pygame.draw.rect(janela, BRANCO, (x + 16, y + 14, 8, 16))
+    # Cabeça
+    pygame.draw.circle(janela, PELE, (x + 20, y + 6), 8)
+
+    # Bandeja com um copo, sempre na frente (no sentido em que ele anda)
+    if garcom["velocidade"] > 0:
+        bandeja_x = x + 28
+    else:
+        bandeja_x = x - 8
+    pygame.draw.rect(janela, DOURADO_BEBIDA, (bandeja_x + 7, y + 8, 6, 9))
+    pygame.draw.ellipse(janela, PRATA, (bandeja_x, y + 16, 20, 6))
 
 
 rodando = True
@@ -120,8 +195,20 @@ while rodando:
         if progresso >= 1:
             pulando = False
 
+    # --- Movimento dos garçons ---
+    for garcom in garcons:
+        garcom["x"] += garcom["velocidade"] * dt
+
+        # Saiu por um lado? Volta pelo outro
+        if garcom["velocidade"] > 0 and garcom["x"] > LARGURA:
+            garcom["x"] = -LARGURA_GARCOM
+        elif garcom["velocidade"] < 0 and garcom["x"] < -LARGURA_GARCOM:
+            garcom["x"] = LARGURA
+
     # --- Desenho ---
     desenhar_tabuleiro()
+    for garcom in garcons:
+        desenhar_garcom(garcom)
     desenhar_jogador(jogador_x, jogador_y, altura_no_ar, esticar)
     pygame.display.update()
 
