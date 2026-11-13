@@ -18,10 +18,12 @@ ALTURA_PULO = 18               # quantos pixels o personagem sobe no meio do pul
 # --- Configurações do mundo infinito ---
 CHANCE_FAIXA_SEGURA = 0.25     # chance de uma faixa de feltro aparecer entre os garçons
 MAX_GARCONS_SEGUIDOS = 5       # nunca mais que 5 faixas de garçom sem descanso
-CHANCE_RIO = 0.35              # NOVO: depois de uma faixa segura, chance de vir um rio
-CHANCE_RIO_CONTINUAR = 0.6     # NOVO: chance do rio ficar mais largo (mais uma faixa)
-MAX_RIO_SEGUIDO = 3            # NOVO: o rio tem no máximo 3 faixas de largura
+CHANCE_RIO = 0.35              # depois de uma faixa segura, chance de vir um rio
+CHANCE_RIO_CONTINUAR = 0.6     # chance do rio ficar mais largo (mais uma faixa)
+MAX_RIO_SEGUIDO = 3            # o rio tem no máximo 3 faixas de largura
 DISTANCIA_DIFICIL = 150        # a partir desses pontos o jogo está no máximo da dificuldade
+CHANCE_FICHA = 0.3             # NOVO: chance de aparecer uma ficha numa faixa de chão
+CHANCE_FICHA_AZUL = 0.15       # NOVO: das fichas, quantas são azuis (valem 5)
 
 # Mude para True para ver as caixas de colisão
 MOSTRAR_HITBOX = False
@@ -43,14 +45,20 @@ PAINEL = (55, 30, 45)
 DOURADO = (230, 190, 60)
 CINZA = (150, 140, 150)
 VERMELHO = (220, 50, 60)
-CAIPIRINHA = (185, 215, 110)       # NOVO
-CAIPIRINHA_ESCURA = (165, 200, 95) # NOVO
-GELO = (225, 245, 220)             # NOVO
-LIMAO_CASCA = (70, 160, 40)        # NOVO
-LIMAO_POLPA = (215, 240, 130)      # NOVO
-MORANGO = (210, 35, 55)            # NOVO
-MORANGO_FOLHA = (40, 140, 50)      # NOVO
-SEMENTE = (250, 220, 120)          # NOVO
+CAIPIRINHA = (185, 215, 110)
+CAIPIRINHA_ESCURA = (165, 200, 95)
+GELO = (225, 245, 220)
+LIMAO_CASCA = (70, 160, 40)
+LIMAO_POLPA = (215, 240, 130)
+MORANGO = (210, 35, 55)
+MORANGO_FOLHA = (40, 140, 50)
+SEMENTE = (250, 220, 120)
+FICHA_VERMELHA = (200, 30, 45)         # NOVO
+FICHA_AZUL = (40, 80, 200)             # NOVO
+MAQUINA_CORPO = (70, 30, 110)          # NOVO
+MAQUINA_LATERAL = (45, 20, 75)         # NOVO
+MAQUINA_TELA = (60, 220, 230)          # NOVO
+MAQUINA_LETREIRO = (255, 90, 170)      # NOVO
 
 # --- Garçons ---
 LARGURA_GARCOM = 40
@@ -71,10 +79,11 @@ fonte_pequena = pygame.font.Font(None, 32)
 # As telas do jogo -> "loja", "jogando" ou "game_over"
 estado = "loja"
 motivo_derrota = ""            # por que perdeu (aparece no game over)
-caiu_no_rio = False            # NOVO: para desenhar o respingo em vez do achatado
+caiu_no_rio = False            # para desenhar o respingo em vez do achatado
 
-# Carteira do jogador (as moedas vêm num próximo passo)
-moedas = 0
+# NOVO: carteira = todas as fichas que o jogador já juntou (é o dinheiro da loja)
+carteira = 0
+fichas_na_rodada = 0           # NOVO: quantas fichas pegou só nesta rodada
 
 # Pontuação: quantas linhas o jogador avançou
 pontos = 0
@@ -85,14 +94,16 @@ recorde = 0
 # igual ao "y" do pygame, IR PARA CIMA DIMINUI o número: -1, -2, -3...
 faixas = {}        # dicionário: número da linha -> tipo ("seguro", "garcons" ou "caipirinha")
 garcons = []       # todos os garçons que existem agora
-frutas = []        # NOVO: todas as frutas boiando nos rios
+frutas = []        # todas as frutas boiando nos rios
+maquinas = []      # NOVO: máquinas de fliperama (obstáculos parados)
+fichas = []        # NOVO: fichas de poker no chão, esperando para serem pegas
 
 # Câmera: a posição (em pixels do mundo) do topo da tela
 camera_y = 0
 
 # --- Jogador ---
-# NOVO: no rio a fruta carrega o jogador para o lado, então ele pode ficar
-# "entre" duas colunas. Por isso agora guardamos só o x em pixels.
+# No rio a fruta carrega o jogador para o lado, então ele pode ficar
+# "entre" duas colunas. Por isso guardamos o x em pixels.
 jogador_linha = 0
 jogador_x = (COLUNAS // 2) * TAMANHO_CASA
 jogador_y = jogador_linha * TAMANHO_CASA
@@ -135,7 +146,7 @@ def criar_garcons_da_faixa(linha):
         })
 
 
-# NOVO: cria as frutas de UMA faixa de rio
+# Cria as frutas de UMA faixa de rio
 # Cada "fruta" é uma fileira de 1 a 3 limões OU morangos boiando juntos
 def criar_frutas_da_faixa(linha):
     d = dificuldade()
@@ -164,6 +175,43 @@ def criar_frutas_da_faixa(linha):
             "velocidade": velocidade,
             "tipo": random.choice(["limao", "morango"]),
         })
+
+
+# NOVO: existe uma máquina de fliperama nessa casa?
+def tem_maquina(linha, coluna):
+    for maquina in maquinas:
+        if maquina["linha"] == linha and maquina["coluna"] == coluna:
+            return True
+    return False
+
+
+# NOVO: coloca máquinas de fliperama numa faixa de feltro
+def criar_maquinas_da_faixa(linha):
+    if linha > 0:
+        quantidade = random.randint(2, 5)          # atrás do início: só enfeite
+    elif linha >= -1:
+        return                                     # área de início: livre
+    else:
+        quantidade = random.randint(0, 2 + int(2 * dificuldade()))   # até 4 quando difícil
+
+    # random.sample sorteia colunas SEM repetir
+    for coluna in random.sample(range(COLUNAS), quantidade):
+        maquinas.append({"linha": linha, "coluna": coluna})
+
+
+# NOVO: às vezes coloca uma ficha numa casa livre da faixa
+def talvez_criar_ficha(linha):
+    if linha >= -1 or random.random() >= CHANCE_FICHA:
+        return
+
+    coluna = random.randrange(COLUNAS)
+    if tem_maquina(linha, coluna):
+        return                                     # casa ocupada: fica sem ficha
+
+    if random.random() < CHANCE_FICHA_AZUL:
+        fichas.append({"linha": linha, "coluna": coluna, "valor": 5, "cor": FICHA_AZUL})
+    else:
+        fichas.append({"linha": linha, "coluna": coluna, "valor": 1, "cor": FICHA_VERMELHA})
 
 
 # Quantas faixas de um tipo existem seguidas logo abaixo desta linha?
@@ -206,8 +254,12 @@ def criar_faixa(linha):
     faixas[linha] = tipo
     if tipo == "garcons":
         criar_garcons_da_faixa(linha)
+        talvez_criar_ficha(linha)              # NOVO
     elif tipo == "caipirinha":
         criar_frutas_da_faixa(linha)
+    else:
+        criar_maquinas_da_faixa(linha)         # NOVO
+        talvez_criar_ficha(linha)              # NOVO
 
 
 # Cria linhas novas até chegar na linha "linha_topo"
@@ -227,7 +279,7 @@ def linha_da_base_da_tela():
     return math.floor((camera_y + ALTURA) / TAMANHO_CASA) - 1
 
 
-# NOVO: a fruta que está debaixo do jogador (ou None se ele está no líquido)
+# A fruta que está debaixo do jogador (ou None se ele está no líquido)
 def fruta_debaixo_do_jogador():
     centro = jogador_x + TAMANHO_CASA / 2      # o "pé" do jogador é o meio dele
     for fruta in frutas:
@@ -258,7 +310,7 @@ def desenhar_tabuleiro():
             cor = VERDE_MESA if linha % 2 == 0 else VERDE_MESA_ESCURO
         pygame.draw.rect(janela, cor, (0, y_na_tela, LARGURA, TAMANHO_CASA))
 
-        # NOVO: cubos de gelo boiando na caipirinha (enfeite)
+        # Cubos de gelo boiando na caipirinha (enfeite)
         if tipo == "caipirinha":
             for i in range(3):
                 gelo_x = (linha * 137 + i * 281) % LARGURA   # "aleatório", mas fixo para cada linha
@@ -281,7 +333,7 @@ def desenhar_jogador(x, y, altura_no_ar, esticar):
     pygame.draw.rect(janela, skin_atual, (corpo_x, corpo_y, largura_corpo, altura_corpo), border_radius=6)
 
 
-# NOVO: respingo quando o jogador cai na caipirinha
+# Respingo quando o jogador cai na caipirinha
 def desenhar_respingo(x, y):
     centro = (x + TAMANHO_CASA / 2, y + TAMANHO_CASA / 2)
     pygame.draw.circle(janela, GELO, centro, 22, 4)
@@ -312,7 +364,7 @@ def desenhar_garcom(garcom):
     pygame.draw.ellipse(janela, PRATA, (bandeja_x, y + 16, 20, 6))
 
 
-# NOVO: desenha uma fileira de limões ou morangos
+# Desenha uma fileira de limões ou morangos
 def desenhar_fruta(fruta):
     y = fruta["linha"] * TAMANHO_CASA - camera_y     # mundo -> tela
     quantidade = fruta["largura"] // TAMANHO_CASA
@@ -338,17 +390,71 @@ def desenhar_fruta(fruta):
             pygame.draw.ellipse(janela, MORANGO_FOLHA, (cx, cy - 20, 14, 9))
 
 
+# NOVO: máquina de fliperama (mais alta que a casa, para parecer "em pé")
+def desenhar_maquina(maquina):
+    x = maquina["coluna"] * TAMANHO_CASA
+    y = maquina["linha"] * TAMANHO_CASA - camera_y     # mundo -> tela
+
+    # Sombra no chão
+    pygame.draw.ellipse(janela, SOMBRA, (x + 4, y + TAMANHO_CASA - 12, TAMANHO_CASA - 8, 10))
+    # Gabinete (a lateral mais escura dá a ideia de profundidade)
+    pygame.draw.rect(janela, MAQUINA_LATERAL, (x + 6, y - 16, 38, 60), border_radius=4)
+    pygame.draw.rect(janela, MAQUINA_CORPO, (x + 9, y - 16, 32, 60), border_radius=4)
+    # Letreiro em cima
+    pygame.draw.rect(janela, MAQUINA_LETREIRO, (x + 11, y - 13, 28, 8), border_radius=2)
+    # Tela brilhando
+    pygame.draw.rect(janela, MAQUINA_TELA, (x + 13, y - 2, 24, 18), border_radius=2)
+    # Painel com joystick e botões
+    pygame.draw.rect(janela, PRETO_TERNO, (x + 10, y + 20, 30, 8))
+    pygame.draw.circle(janela, VERMELHO, (x + 17, y + 20), 3)
+    pygame.draw.circle(janela, DOURADO, (x + 27, y + 24), 2)
+    pygame.draw.circle(janela, MAQUINA_TELA, (x + 33, y + 24), 2)
+
+
+# NOVO: ficha de poker girando e flutuando
+def desenhar_ficha(ficha):
+    tempo = pygame.time.get_ticks() / 1000
+    cx = ficha["coluna"] * TAMANHO_CASA + TAMANHO_CASA / 2
+    cy = ficha["linha"] * TAMANHO_CASA - camera_y + TAMANHO_CASA / 2
+    flutuar = math.sin(tempo * 4 + ficha["coluna"]) * 3        # sobe e desce
+    largura = abs(math.cos(tempo * 3 + ficha["linha"])) * 30 + 6  # "gira" afinando
+
+    # Sombra fixa no chão
+    pygame.draw.ellipse(janela, (0, 0, 0), (cx - 12, cy + 12, 24, 6))
+
+    # Ficha: borda branca, centro colorido e um anel branco no meio
+    area = pygame.Rect(0, 0, largura, 30)
+    area.center = (cx, cy - 4 + flutuar)
+    pygame.draw.ellipse(janela, BRANCO, area)
+    pygame.draw.ellipse(janela, ficha["cor"], area.inflate(-6, -6))
+    if largura > 18:
+        pygame.draw.ellipse(janela, BRANCO, area.inflate(-16, -16), 2)
+
+
+# NOVO: desenha uma ficha pequena + número (usado no placar e na loja)
+def desenhar_contador_de_fichas(valor, x, y):
+    pygame.draw.circle(janela, BRANCO, (x, y), 14)
+    pygame.draw.circle(janela, FICHA_VERMELHA, (x, y), 11)
+    pygame.draw.circle(janela, BRANCO, (x, y), 6, 2)
+    imagem = fonte_media.render(str(valor), True, BRANCO)
+    janela.blit(imagem, imagem.get_rect(midleft=(x + 22, y + 1)))
+
+
 # Escreve um texto centralizado na posição (x, y)
 def escrever(texto, fonte, cor, x, y):
     imagem = fonte.render(texto, True, cor)
     janela.blit(imagem, imagem.get_rect(center=(x, y)))
 
 
-# Desenha o jogo inteiro (chão, frutas, garçons, jogador, pontos)
+# Desenha o jogo inteiro (chão, frutas, fichas, máquinas, garçons, jogador, placar)
 def desenhar_jogo(altura_no_ar, esticar):
     desenhar_tabuleiro()
     for fruta in frutas:
         desenhar_fruta(fruta)
+    for ficha in fichas:
+        desenhar_ficha(ficha)
+    for maquina in maquinas:
+        desenhar_maquina(maquina)
     for garcom in garcons:
         desenhar_garcom(garcom)
 
@@ -369,8 +475,18 @@ def desenhar_jogo(altura_no_ar, esticar):
             area = (fruta["x"], fruta["linha"] * TAMANHO_CASA - camera_y, fruta["largura"], TAMANHO_CASA)
             pygame.draw.rect(janela, (255, 255, 0), area, 2)
 
-    # Pontos no canto da tela
-    escrever(str(pontos), fonte_grande, BRANCO, 60, 45)
+    # Placar: pontos à esquerda, fichas da rodada à direita (com uma caixa escura atrás)
+    desenhar_caixa_placar(10, 10, 110, 64)
+    escrever(str(pontos), fonte_grande, BRANCO, 65, 44)
+    desenhar_caixa_placar(LARGURA - 150, 10, 140, 60)
+    desenhar_contador_de_fichas(fichas_na_rodada, LARGURA - 120, 40)
+
+
+# NOVO: caixinha preta meio transparente, para o placar aparecer em qualquer fundo
+def desenhar_caixa_placar(x, y, largura, altura):
+    caixa = pygame.Surface((largura, altura), pygame.SRCALPHA)
+    pygame.draw.rect(caixa, (0, 0, 0, 140), caixa.get_rect(), border_radius=12)
+    janela.blit(caixa, (x, y))
 
 
 # Película escura por cima do jogo
@@ -383,10 +499,11 @@ def escurecer_tela():
 # Tela de GAME OVER
 def desenhar_game_over():
     escurecer_tela()
-    escrever("GAME OVER", fonte_enorme, VERMELHO, LARGURA / 2, ALTURA / 2 - 90)
-    escrever(motivo_derrota, fonte_media, BRANCO, LARGURA / 2, ALTURA / 2 - 20)
-    escrever(f"Pontos: {pontos}    Recorde: {recorde}", fonte_media, DOURADO, LARGURA / 2, ALTURA / 2 + 35)
-    escrever("Aperte ESPAÇO para voltar à loja", fonte_pequena, CINZA, LARGURA / 2, ALTURA / 2 + 100)
+    escrever("GAME OVER", fonte_enorme, VERMELHO, LARGURA / 2, ALTURA / 2 - 110)
+    escrever(motivo_derrota, fonte_media, BRANCO, LARGURA / 2, ALTURA / 2 - 40)
+    escrever(f"Pontos: {pontos}    Recorde: {recorde}", fonte_media, DOURADO, LARGURA / 2, ALTURA / 2 + 15)
+    escrever(f"Fichas nesta rodada: +{fichas_na_rodada}", fonte_media, BRANCO, LARGURA / 2, ALTURA / 2 + 60)
+    escrever("Aperte ESPAÇO para voltar à loja", fonte_pequena, CINZA, LARGURA / 2, ALTURA / 2 + 120)
 
 
 # Tela da LOJA (por enquanto só a estrutura: as compras vêm nos próximos passos)
@@ -395,10 +512,8 @@ def desenhar_loja():
 
     escrever("LOJA", fonte_enorme, DOURADO, LARGURA / 2, 70)
 
-    # Carteira: uma moedinha desenhada + quantas moedas o jogador tem
-    pygame.draw.circle(janela, DOURADO, (LARGURA / 2 - 60, 140), 14)
-    pygame.draw.circle(janela, DOURADO_BEBIDA, (LARGURA / 2 - 60, 140), 9)
-    escrever(str(moedas), fonte_media, BRANCO, LARGURA / 2 + 10, 141)
+    # Carteira: quantas fichas o jogador tem para gastar
+    desenhar_contador_de_fichas(carteira, LARGURA / 2 - 30, 140)
 
     # Dois painéis: um para skins, outro para poderes
     painel_skins = pygame.Rect(60, 190, 320, 300)
@@ -433,6 +548,7 @@ while rodando:
                 jogador_y = jogador_linha * TAMANHO_CASA
                 pulando = False
                 pontos = 0
+                fichas_na_rodada = 0
                 caiu_no_rio = False
 
                 # ...câmera com o jogador na 4ª linha de baixo para cima...
@@ -442,6 +558,8 @@ while rodando:
                 faixas = {linha_da_base_da_tela() + 1: "seguro"}
                 garcons = []
                 frutas = []
+                maquinas = []
+                fichas = []
                 gerar_faixas_ate(linha_do_topo_da_tela() - 2)
 
                 estado = "jogando"
@@ -465,7 +583,7 @@ while rodando:
             # Não deixa voltar para baixo da tela
             nova_linha = min(jogador_linha + dy, linha_da_base_da_tela())
 
-            # NOVO: onde ele vai cair no eixo x
+            # Onde ele vai cair no eixo x
             if faixas.get(nova_linha) == "caipirinha":
                 # no rio: anda uma casa a partir de onde está (sem "encaixar" na coluna)
                 novo_x = jogador_x + dx * TAMANHO_CASA
@@ -475,6 +593,10 @@ while rodando:
 
             # Não deixa sair pelos lados
             novo_x = max(0, min(novo_x, (COLUNAS - 1) * TAMANHO_CASA))
+
+            # NOVO: tem uma máquina de fliperama lá? Então não pula (fica onde está)
+            if tem_maquina(nova_linha, round(novo_x / TAMANHO_CASA)):
+                continue
 
             # Se o lugar mudou, começa um pulo
             if (novo_x, nova_linha) != (jogador_x, jogador_linha):
@@ -520,6 +642,8 @@ while rodando:
         limite = linha_da_base_da_tela() + 2
         garcons = [g for g in garcons if g["linha"] <= limite]
         frutas = [f for f in frutas if f["linha"] <= limite]
+        maquinas = [m for m in maquinas if m["linha"] <= limite]
+        fichas = [f for f in fichas if f["linha"] <= limite]
         for linha in list(faixas):
             if linha > limite:
                 del faixas[linha]
@@ -534,7 +658,7 @@ while rodando:
             elif garcom["velocidade"] < 0 and garcom["x"] < -LARGURA_GARCOM:
                 garcom["x"] = LARGURA
 
-        # NOVO: movimento das frutas
+        # Movimento das frutas
         # Todas dão a volta pelo mesmo "circuito" (a tela + 3 casas escondidas),
         # assim fileiras de tamanhos diferentes nunca se encavalam
         circuito = LARGURA + 3 * TAMANHO_CASA
@@ -546,7 +670,16 @@ while rodando:
             elif fruta["velocidade"] < 0 and fruta["x"] < -3 * TAMANHO_CASA:
                 fruta["x"] += circuito
 
-        # NOVO: o rio de caipirinha (só vale quando o jogador já pousou)
+        # NOVO: pegar fichas (basta passar pela casa dela, até no meio do pulo)
+        for ficha in fichas[:]:            # [:] = uma cópia, para poder remover da original
+            perto_x = abs(jogador_x - ficha["coluna"] * TAMANHO_CASA) < TAMANHO_CASA / 2
+            perto_y = abs(jogador_y - ficha["linha"] * TAMANHO_CASA) < TAMANHO_CASA / 2
+            if perto_x and perto_y:
+                fichas.remove(ficha)
+                fichas_na_rodada += ficha["valor"]
+                carteira += ficha["valor"]
+
+        # O rio de caipirinha (só vale quando o jogador já pousou)
         if faixas.get(jogador_linha) == "caipirinha" and not pulando:
             fruta = fruta_debaixo_do_jogador()
             if fruta is None:
