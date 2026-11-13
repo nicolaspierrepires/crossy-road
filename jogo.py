@@ -22,8 +22,8 @@ CHANCE_RIO = 0.35              # depois de uma faixa segura, chance de vir um ri
 CHANCE_RIO_CONTINUAR = 0.6     # chance do rio ficar mais largo (mais uma faixa)
 MAX_RIO_SEGUIDO = 3            # o rio tem no máximo 3 faixas de largura
 DISTANCIA_DIFICIL = 150        # a partir desses pontos o jogo está no máximo da dificuldade
-CHANCE_FICHA = 0.3             # NOVO: chance de aparecer uma ficha numa faixa de chão
-CHANCE_FICHA_AZUL = 0.15       # NOVO: das fichas, quantas são azuis (valem 5)
+CHANCE_FICHA = 0.3             # chance de aparecer uma ficha numa faixa de chão
+CHANCE_FICHA_AZUL = 0.15       # das fichas, quantas são azuis (valem 5)
 
 # Mude para True para ver as caixas de colisão
 MOSTRAR_HITBOX = False
@@ -53,12 +53,12 @@ LIMAO_POLPA = (215, 240, 130)
 MORANGO = (210, 35, 55)
 MORANGO_FOLHA = (40, 140, 50)
 SEMENTE = (250, 220, 120)
-FICHA_VERMELHA = (200, 30, 45)         # NOVO
-FICHA_AZUL = (40, 80, 200)             # NOVO
-MAQUINA_CORPO = (70, 30, 110)          # NOVO
-MAQUINA_LATERAL = (45, 20, 75)         # NOVO
-MAQUINA_TELA = (60, 220, 230)          # NOVO
-MAQUINA_LETREIRO = (255, 90, 170)      # NOVO
+FICHA_VERMELHA = (200, 30, 45)
+FICHA_AZUL = (40, 80, 200)
+MAQUINA_CORPO = (70, 30, 110)
+MAQUINA_LATERAL = (45, 20, 75)
+MAQUINA_TELA = (60, 220, 230)
+MAQUINA_LETREIRO = (255, 90, 170)
 
 # --- Garçons ---
 LARGURA_GARCOM = 40
@@ -75,15 +75,16 @@ fonte_enorme = pygame.font.Font(None, 110)
 fonte_grande = pygame.font.Font(None, 72)
 fonte_media = pygame.font.Font(None, 44)
 fonte_pequena = pygame.font.Font(None, 32)
+fonte_ficha = pygame.font.Font(None, 22)       # NOVO: o número escrito na ficha
 
 # As telas do jogo -> "loja", "jogando" ou "game_over"
 estado = "loja"
 motivo_derrota = ""            # por que perdeu (aparece no game over)
 caiu_no_rio = False            # para desenhar o respingo em vez do achatado
 
-# NOVO: carteira = todas as fichas que o jogador já juntou (é o dinheiro da loja)
+# Carteira = todas as fichas que o jogador já juntou (é o dinheiro da loja)
 carteira = 0
-fichas_na_rodada = 0           # NOVO: quantas fichas pegou só nesta rodada
+fichas_na_rodada = 0           # quantas fichas pegou só nesta rodada
 
 # Pontuação: quantas linhas o jogador avançou
 pontos = 0
@@ -95,8 +96,8 @@ recorde = 0
 faixas = {}        # dicionário: número da linha -> tipo ("seguro", "garcons" ou "caipirinha")
 garcons = []       # todos os garçons que existem agora
 frutas = []        # todas as frutas boiando nos rios
-maquinas = []      # NOVO: máquinas de fliperama (obstáculos parados)
-fichas = []        # NOVO: fichas de poker no chão, esperando para serem pegas
+maquinas = []      # máquinas de fliperama (obstáculos parados)
+fichas = []        # fichas de poker no chão, esperando para serem pegas
 
 # Câmera: a posição (em pixels do mundo) do topo da tela
 camera_y = 0
@@ -177,7 +178,7 @@ def criar_frutas_da_faixa(linha):
         })
 
 
-# NOVO: existe uma máquina de fliperama nessa casa?
+# Existe uma máquina de fliperama nessa casa?
 def tem_maquina(linha, coluna):
     for maquina in maquinas:
         if maquina["linha"] == linha and maquina["coluna"] == coluna:
@@ -185,7 +186,7 @@ def tem_maquina(linha, coluna):
     return False
 
 
-# NOVO: coloca máquinas de fliperama numa faixa de feltro
+# Coloca máquinas de fliperama numa faixa de feltro
 def criar_maquinas_da_faixa(linha):
     if linha > 0:
         quantidade = random.randint(2, 5)          # atrás do início: só enfeite
@@ -199,7 +200,7 @@ def criar_maquinas_da_faixa(linha):
         maquinas.append({"linha": linha, "coluna": coluna})
 
 
-# NOVO: às vezes coloca uma ficha numa casa livre da faixa
+# Às vezes coloca uma ficha numa casa livre da faixa
 def talvez_criar_ficha(linha):
     if linha >= -1 or random.random() >= CHANCE_FICHA:
         return
@@ -254,12 +255,12 @@ def criar_faixa(linha):
     faixas[linha] = tipo
     if tipo == "garcons":
         criar_garcons_da_faixa(linha)
-        talvez_criar_ficha(linha)              # NOVO
+        talvez_criar_ficha(linha)
     elif tipo == "caipirinha":
         criar_frutas_da_faixa(linha)
     else:
-        criar_maquinas_da_faixa(linha)         # NOVO
-        talvez_criar_ficha(linha)              # NOVO
+        criar_maquinas_da_faixa(linha)
+        talvez_criar_ficha(linha)
 
 
 # Cria linhas novas até chegar na linha "linha_topo"
@@ -390,7 +391,7 @@ def desenhar_fruta(fruta):
             pygame.draw.ellipse(janela, MORANGO_FOLHA, (cx, cy - 20, 14, 9))
 
 
-# NOVO: máquina de fliperama (mais alta que a casa, para parecer "em pé")
+# Máquina de fliperama (mais alta que a casa, para parecer "em pé")
 def desenhar_maquina(maquina):
     x = maquina["coluna"] * TAMANHO_CASA
     y = maquina["linha"] * TAMANHO_CASA - camera_y     # mundo -> tela
@@ -411,33 +412,71 @@ def desenhar_maquina(maquina):
     pygame.draw.circle(janela, MAQUINA_TELA, (x + 33, y + 24), 2)
 
 
-# NOVO: ficha de poker girando e flutuando
+# NOVO: deixa uma cor mais escura (multiplica o R, G e B por um número menor que 1)
+def escurecer(cor, quanto=0.55):
+    return (int(cor[0] * quanto), int(cor[1] * quanto), int(cor[2] * quanto))
+
+
+# NOVO: desenha uma ficha de poker de verdade
+#   achatar   -> 1 = vista de cima (redonda); menor que 1 = deitada na mesa, vista de lado
+#   espessura -> a "grossura" da ficha em pixels (0 = sem grossura)
+#   valor     -> número escrito no meio (ou None para não escrever)
+def desenhar_ficha_de_poker(cx, cy, raio, cor, achatar=1.0, espessura=0, valor=None):
+    meia_altura = raio * achatar           # a ficha deitada vira uma elipse mais baixa
+    topo = pygame.Rect(0, 0, raio * 2, meia_altura * 2)
+    topo.center = (cx, cy)
+
+    # 1) Lateral (a grossura): uma elipse mais escura um pouco abaixo do topo
+    if espessura > 0:
+        cor_lateral = escurecer(cor)
+        pygame.draw.ellipse(janela, cor_lateral, topo.move(0, espessura))
+        pygame.draw.rect(janela, cor_lateral, (cx - raio, cy, raio * 2, espessura))
+        # As listras brancas que toda ficha tem na lateral
+        for posicao in (-0.65, 0, 0.65):
+            base_y = cy + meia_altura * math.sqrt(1 - posicao ** 2)
+            pygame.draw.rect(janela, BRANCO, (cx + posicao * raio - 3, base_y - 1, 6, espessura + 1))
+
+    # 2) Topo colorido, com um contorno escuro para destacar de qualquer fundo
+    pygame.draw.ellipse(janela, escurecer(cor, 0.3), topo.inflate(4, 4))
+    pygame.draw.ellipse(janela, cor, topo)
+
+    # 3) Os 6 "dentes" brancos na borda (a marca registrada da ficha de poker)
+    for i in range(6):
+        angulo = i * math.pi / 3 + math.pi / 6
+        dente = pygame.Rect(0, 0, raio * 0.42, meia_altura * 0.42)
+        dente.center = (cx + math.cos(angulo) * raio * 0.78, cy + math.sin(angulo) * meia_altura * 0.78)
+        pygame.draw.ellipse(janela, BRANCO, dente)
+
+    # 4) Anel branco por dentro e o miolo colorido
+    pygame.draw.ellipse(janela, BRANCO, topo.inflate(-raio * 0.75, -meia_altura * 0.75))
+    pygame.draw.ellipse(janela, cor, topo.inflate(-raio * 0.95, -meia_altura * 0.95))
+
+    # 5) Valor no meio, achatado junto com a ficha
+    if valor is not None:
+        texto = fonte_ficha.render(str(valor), True, BRANCO)
+        altura_texto = max(1, int(texto.get_height() * achatar))
+        texto = pygame.transform.scale(texto, (texto.get_width(), altura_texto))
+        janela.blit(texto, texto.get_rect(center=(cx, cy + 1)))
+
+
+# NOVO: ficha no chão, deitada e flutuando de leve
 def desenhar_ficha(ficha):
     tempo = pygame.time.get_ticks() / 1000
     cx = ficha["coluna"] * TAMANHO_CASA + TAMANHO_CASA / 2
     cy = ficha["linha"] * TAMANHO_CASA - camera_y + TAMANHO_CASA / 2
     flutuar = math.sin(tempo * 4 + ficha["coluna"]) * 3        # sobe e desce
-    largura = abs(math.cos(tempo * 3 + ficha["linha"])) * 30 + 6  # "gira" afinando
 
     # Sombra fixa no chão
-    pygame.draw.ellipse(janela, (0, 0, 0), (cx - 12, cy + 12, 24, 6))
+    pygame.draw.ellipse(janela, (0, 0, 0), (cx - 16, cy + 9, 32, 8))
 
-    # Ficha: borda branca, centro colorido e um anel branco no meio
-    area = pygame.Rect(0, 0, largura, 30)
-    area.center = (cx, cy - 4 + flutuar)
-    pygame.draw.ellipse(janela, BRANCO, area)
-    pygame.draw.ellipse(janela, ficha["cor"], area.inflate(-6, -6))
-    if largura > 18:
-        pygame.draw.ellipse(janela, BRANCO, area.inflate(-16, -16), 2)
+    desenhar_ficha_de_poker(cx, cy - 6 + flutuar, 20, ficha["cor"], achatar=0.55, espessura=6, valor=ficha["valor"])
 
 
-# NOVO: desenha uma ficha pequena + número (usado no placar e na loja)
+# NOVO: desenha uma ficha vista de cima + número (usado no placar e na loja)
 def desenhar_contador_de_fichas(valor, x, y):
-    pygame.draw.circle(janela, BRANCO, (x, y), 14)
-    pygame.draw.circle(janela, FICHA_VERMELHA, (x, y), 11)
-    pygame.draw.circle(janela, BRANCO, (x, y), 6, 2)
+    desenhar_ficha_de_poker(x, y, 16, FICHA_VERMELHA)
     imagem = fonte_media.render(str(valor), True, BRANCO)
-    janela.blit(imagem, imagem.get_rect(midleft=(x + 22, y + 1)))
+    janela.blit(imagem, imagem.get_rect(midleft=(x + 24, y + 1)))
 
 
 # Escreve um texto centralizado na posição (x, y)
@@ -482,7 +521,7 @@ def desenhar_jogo(altura_no_ar, esticar):
     desenhar_contador_de_fichas(fichas_na_rodada, LARGURA - 120, 40)
 
 
-# NOVO: caixinha preta meio transparente, para o placar aparecer em qualquer fundo
+# Caixinha preta meio transparente, para o placar aparecer em qualquer fundo
 def desenhar_caixa_placar(x, y, largura, altura):
     caixa = pygame.Surface((largura, altura), pygame.SRCALPHA)
     pygame.draw.rect(caixa, (0, 0, 0, 140), caixa.get_rect(), border_radius=12)
@@ -594,7 +633,7 @@ while rodando:
             # Não deixa sair pelos lados
             novo_x = max(0, min(novo_x, (COLUNAS - 1) * TAMANHO_CASA))
 
-            # NOVO: tem uma máquina de fliperama lá? Então não pula (fica onde está)
+            # Tem uma máquina de fliperama lá? Então não pula (fica onde está)
             if tem_maquina(nova_linha, round(novo_x / TAMANHO_CASA)):
                 continue
 
@@ -670,7 +709,7 @@ while rodando:
             elif fruta["velocidade"] < 0 and fruta["x"] < -3 * TAMANHO_CASA:
                 fruta["x"] += circuito
 
-        # NOVO: pegar fichas (basta passar pela casa dela, até no meio do pulo)
+        # Pegar fichas (basta passar pela casa dela, até no meio do pulo)
         for ficha in fichas[:]:            # [:] = uma cópia, para poder remover da original
             perto_x = abs(jogador_x - ficha["coluna"] * TAMANHO_CASA) < TAMANHO_CASA / 2
             perto_y = abs(jogador_y - ficha["linha"] * TAMANHO_CASA) < TAMANHO_CASA / 2
