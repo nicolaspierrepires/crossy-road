@@ -75,7 +75,7 @@ fonte_enorme = pygame.font.Font(None, 110)
 fonte_grande = pygame.font.Font(None, 72)
 fonte_media = pygame.font.Font(None, 44)
 fonte_pequena = pygame.font.Font(None, 32)
-fonte_ficha = pygame.font.Font(None, 22)       # NOVO: o número escrito na ficha
+fonte_ficha = pygame.font.Font(None, 22)       # o número escrito na ficha
 
 # As telas do jogo -> "loja", "jogando" ou "game_over"
 estado = "loja"
@@ -188,12 +188,10 @@ def tem_maquina(linha, coluna):
 
 # Coloca máquinas de fliperama numa faixa de feltro
 def criar_maquinas_da_faixa(linha):
-    if linha > 0:
-        quantidade = random.randint(2, 5)          # atrás do início: só enfeite
-    elif linha >= -1:
-        return                                     # área de início: livre
-    else:
-        quantidade = random.randint(0, 2 + int(2 * dificuldade()))   # até 4 quando difícil
+    if linha >= -1:
+        return                                     # NOVO: área de início (5 primeiras linhas): livre
+
+    quantidade = random.randint(0, 2 + int(2 * dificuldade()))   # até 4 quando difícil
 
     # random.sample sorteia colunas SEM repetir
     for coluna in random.sample(range(COLUNAS), quantidade):
@@ -412,12 +410,12 @@ def desenhar_maquina(maquina):
     pygame.draw.circle(janela, MAQUINA_TELA, (x + 33, y + 24), 2)
 
 
-# NOVO: deixa uma cor mais escura (multiplica o R, G e B por um número menor que 1)
+# Deixa uma cor mais escura (multiplica o R, G e B por um número menor que 1)
 def escurecer(cor, quanto=0.55):
     return (int(cor[0] * quanto), int(cor[1] * quanto), int(cor[2] * quanto))
 
 
-# NOVO: desenha uma ficha de poker de verdade
+# Desenha uma ficha de poker de verdade
 #   achatar   -> 1 = vista de cima (redonda); menor que 1 = deitada na mesa, vista de lado
 #   espessura -> a "grossura" da ficha em pixels (0 = sem grossura)
 #   valor     -> número escrito no meio (ou None para não escrever)
@@ -459,7 +457,7 @@ def desenhar_ficha_de_poker(cx, cy, raio, cor, achatar=1.0, espessura=0, valor=N
         janela.blit(texto, texto.get_rect(center=(cx, cy + 1)))
 
 
-# NOVO: ficha no chão, deitada e flutuando de leve
+# Ficha no chão, deitada e flutuando de leve
 def desenhar_ficha(ficha):
     tempo = pygame.time.get_ticks() / 1000
     cx = ficha["coluna"] * TAMANHO_CASA + TAMANHO_CASA / 2
@@ -472,7 +470,7 @@ def desenhar_ficha(ficha):
     desenhar_ficha_de_poker(cx, cy - 6 + flutuar, 20, ficha["cor"], achatar=0.55, espessura=6, valor=ficha["valor"])
 
 
-# NOVO: desenha uma ficha vista de cima + número (usado no placar e na loja)
+# Desenha uma ficha vista de cima + número (usado no placar e na loja)
 def desenhar_contador_de_fichas(valor, x, y):
     desenhar_ficha_de_poker(x, y, 16, FICHA_VERMELHA)
     imagem = fonte_media.render(str(valor), True, BRANCO)
