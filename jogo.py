@@ -18,6 +18,9 @@ ALTURA_PULO = 18               # quantos pixels o personagem sobe no meio do pul
 # --- Configurações do mundo infinito ---
 CHANCE_FAIXA_SEGURA = 0.25     # chance de uma faixa de feltro aparecer entre os garçons
 MAX_GARCONS_SEGUIDOS = 5       # nunca mais que 5 faixas de garçom sem descanso
+CHANCE_RIO = 0.35              # NOVO: depois de uma faixa segura, chance de vir um rio
+CHANCE_RIO_CONTINUAR = 0.6     # NOVO: chance do rio ficar mais largo (mais uma faixa)
+MAX_RIO_SEGUIDO = 3            # NOVO: o rio tem no máximo 3 faixas de largura
 DISTANCIA_DIFICIL = 150        # a partir desses pontos o jogo está no máximo da dificuldade
 
 # Mude para True para ver as caixas de colisão
@@ -40,6 +43,14 @@ PAINEL = (55, 30, 45)
 DOURADO = (230, 190, 60)
 CINZA = (150, 140, 150)
 VERMELHO = (220, 50, 60)
+CAIPIRINHA = (185, 215, 110)       # NOVO
+CAIPIRINHA_ESCURA = (165, 200, 95) # NOVO
+GELO = (225, 245, 220)             # NOVO
+LIMAO_CASCA = (70, 160, 40)        # NOVO
+LIMAO_POLPA = (215, 240, 130)      # NOVO
+MORANGO = (210, 35, 55)            # NOVO
+MORANGO_FOLHA = (40, 140, 50)      # NOVO
+SEMENTE = (250, 220, 120)          # NOVO
 
 # --- Garçons ---
 LARGURA_GARCOM = 40
@@ -60,6 +71,7 @@ fonte_pequena = pygame.font.Font(None, 32)
 # As telas do jogo -> "loja", "jogando" ou "game_over"
 estado = "loja"
 motivo_derrota = ""            # por que perdeu (aparece no game over)
+caiu_no_rio = False            # NOVO: para desenhar o respingo em vez do achatado
 
 # Carteira do jogador (as moedas vêm num próximo passo)
 moedas = 0
@@ -69,18 +81,20 @@ pontos = 0
 recorde = 0
 
 # --- O mundo ---
-# Agora o mundo não tem fim. As linhas são numeradas a partir do início (linha 0)
-# e, igual ao "y" do pygame, IR PARA CIMA DIMINUI o número: -1, -2, -3...
-faixas = {}        # dicionário: número da linha -> tipo ("seguro" ou "garcons")
+# As linhas são numeradas a partir do início (linha 0) e,
+# igual ao "y" do pygame, IR PARA CIMA DIMINUI o número: -1, -2, -3...
+faixas = {}        # dicionário: número da linha -> tipo ("seguro", "garcons" ou "caipirinha")
 garcons = []       # todos os garçons que existem agora
+frutas = []        # NOVO: todas as frutas boiando nos rios
 
 # Câmera: a posição (em pixels do mundo) do topo da tela
 camera_y = 0
 
 # --- Jogador ---
-jogador_coluna = COLUNAS // 2
+# NOVO: no rio a fruta carrega o jogador para o lado, então ele pode ficar
+# "entre" duas colunas. Por isso agora guardamos só o x em pixels.
 jogador_linha = 0
-jogador_x = jogador_coluna * TAMANHO_CASA
+jogador_x = (COLUNAS // 2) * TAMANHO_CASA
 jogador_y = jogador_linha * TAMANHO_CASA
 
 # Controle do pulo
@@ -121,30 +135,79 @@ def criar_garcons_da_faixa(linha):
         })
 
 
-# Quantas faixas de garçom seguidas existem logo abaixo desta linha?
-def garcons_seguidos_abaixo(linha):
+# NOVO: cria as frutas de UMA faixa de rio
+# Cada "fruta" é uma fileira de 1 a 3 limões OU morangos boiando juntos
+def criar_frutas_da_faixa(linha):
+    d = dificuldade()
+
+    # Frutas andam mais devagar que garçons
+    velocidade = random.randint(50, 100) + int(50 * d)
+    if random.random() < 0.5:
+        velocidade = -velocidade
+
+    # Quanto mais longe, fileiras menores (mais difícil de acertar o pulo)
+    if d < 0.5:
+        tamanhos = [2, 3, 3]
+    else:
+        tamanhos = [1, 2, 2, 3]
+
+    # 3 fileiras espalhadas pelo "circuito" (a tela + 3 casas escondidas fora dela)
+    quantidade = 3
+    espaco = (LARGURA + 3 * TAMANHO_CASA) / quantidade
+    for i in range(quantidade):
+        tamanho = random.choice(tamanhos)
+        largura = tamanho * TAMANHO_CASA
+        frutas.append({
+            "linha": linha,
+            "x": i * espaco + random.uniform(0, espaco - largura - TAMANHO_CASA),
+            "largura": largura,
+            "velocidade": velocidade,
+            "tipo": random.choice(["limao", "morango"]),
+        })
+
+
+# Quantas faixas de um tipo existem seguidas logo abaixo desta linha?
+def seguidas_abaixo(linha, tipo):
     contagem = 0
-    while faixas.get(linha + 1 + contagem) == "garcons":
+    while faixas.get(linha + 1 + contagem) == tipo:
         contagem += 1
     return contagem
 
 
 # Sorteia o tipo de uma linha nova e cria o que tiver nela
 def criar_faixa(linha):
+    anterior = faixas[linha + 1]               # a faixa logo abaixo
+
     if linha >= -1:
-        tipo = "seguro"                            # área de início: sempre segura
-    elif faixas[linha + 1] == "seguro":
-        tipo = "garcons"                           # depois de descanso vem perigo
-    elif garcons_seguidos_abaixo(linha) >= MAX_GARCONS_SEGUIDOS:
-        tipo = "seguro"                            # já teve garçom demais seguido
-    elif random.random() < CHANCE_FAIXA_SEGURA:
-        tipo = "seguro"
-    else:
-        tipo = "garcons"
+        tipo = "seguro"                        # área de início: sempre segura
+
+    elif anterior == "seguro":
+        # depois de descanso vem perigo: rio ou garçons
+        if random.random() < CHANCE_RIO:
+            tipo = "caipirinha"
+        else:
+            tipo = "garcons"
+
+    elif anterior == "caipirinha":
+        # o rio continua (fica mais largo) ou termina numa margem segura
+        if seguidas_abaixo(linha, "caipirinha") < MAX_RIO_SEGUIDO and random.random() < CHANCE_RIO_CONTINUAR:
+            tipo = "caipirinha"
+        else:
+            tipo = "seguro"
+
+    else:  # anterior == "garcons"
+        if seguidas_abaixo(linha, "garcons") >= MAX_GARCONS_SEGUIDOS:
+            tipo = "seguro"
+        elif random.random() < CHANCE_FAIXA_SEGURA:
+            tipo = "seguro"
+        else:
+            tipo = "garcons"
 
     faixas[linha] = tipo
     if tipo == "garcons":
         criar_garcons_da_faixa(linha)
+    elif tipo == "caipirinha":
+        criar_frutas_da_faixa(linha)
 
 
 # Cria linhas novas até chegar na linha "linha_topo"
@@ -164,6 +227,15 @@ def linha_da_base_da_tela():
     return math.floor((camera_y + ALTURA) / TAMANHO_CASA) - 1
 
 
+# NOVO: a fruta que está debaixo do jogador (ou None se ele está no líquido)
+def fruta_debaixo_do_jogador():
+    centro = jogador_x + TAMANHO_CASA / 2      # o "pé" do jogador é o meio dele
+    for fruta in frutas:
+        if fruta["linha"] == jogador_linha and fruta["x"] <= centro <= fruta["x"] + fruta["largura"]:
+            return fruta
+    return None
+
+
 # Caixas de colisão (hitbox) -> em coordenadas do MUNDO
 def hitbox_jogador():
     return pygame.Rect(jogador_x + 12, jogador_y + 12, 26, 30)
@@ -175,12 +247,22 @@ def hitbox_garcom(garcom):
 
 def desenhar_tabuleiro():
     for linha in range(linha_do_topo_da_tela(), linha_da_base_da_tela() + 2):
-        if faixas.get(linha) == "garcons":
+        tipo = faixas.get(linha)
+        y_na_tela = linha * TAMANHO_CASA - camera_y
+
+        if tipo == "garcons":
             cor = CARPETE if linha % 2 == 0 else CARPETE_ESCURO
+        elif tipo == "caipirinha":
+            cor = CAIPIRINHA if linha % 2 == 0 else CAIPIRINHA_ESCURA
         else:
             cor = VERDE_MESA if linha % 2 == 0 else VERDE_MESA_ESCURO
-        y_na_tela = linha * TAMANHO_CASA - camera_y
         pygame.draw.rect(janela, cor, (0, y_na_tela, LARGURA, TAMANHO_CASA))
+
+        # NOVO: cubos de gelo boiando na caipirinha (enfeite)
+        if tipo == "caipirinha":
+            for i in range(3):
+                gelo_x = (linha * 137 + i * 281) % LARGURA   # "aleatório", mas fixo para cada linha
+                pygame.draw.rect(janela, GELO, (gelo_x, y_na_tela + 15 + i * 7, 14, 14), border_radius=3)
 
 
 def desenhar_jogador(x, y, altura_no_ar, esticar):
@@ -197,6 +279,15 @@ def desenhar_jogador(x, y, altura_no_ar, esticar):
     corpo_x = x + (TAMANHO_CASA - largura_corpo) / 2
     corpo_y = y + TAMANHO_CASA - 8 - altura_corpo - altura_no_ar
     pygame.draw.rect(janela, skin_atual, (corpo_x, corpo_y, largura_corpo, altura_corpo), border_radius=6)
+
+
+# NOVO: respingo quando o jogador cai na caipirinha
+def desenhar_respingo(x, y):
+    centro = (x + TAMANHO_CASA / 2, y + TAMANHO_CASA / 2)
+    pygame.draw.circle(janela, GELO, centro, 22, 4)
+    pygame.draw.circle(janela, BRANCO, centro, 12, 3)
+    for dx, dy in ((-24, -16), (22, -18), (-14, -26), (16, -28)):
+        pygame.draw.circle(janela, GELO, (centro[0] + dx, centro[1] + dy), 4)
 
 
 def desenhar_garcom(garcom):
@@ -221,20 +312,50 @@ def desenhar_garcom(garcom):
     pygame.draw.ellipse(janela, PRATA, (bandeja_x, y + 16, 20, 6))
 
 
+# NOVO: desenha uma fileira de limões ou morangos
+def desenhar_fruta(fruta):
+    y = fruta["linha"] * TAMANHO_CASA - camera_y     # mundo -> tela
+    quantidade = fruta["largura"] // TAMANHO_CASA
+    cy = y + TAMANHO_CASA / 2
+
+    for i in range(quantidade):
+        cx = fruta["x"] + i * TAMANHO_CASA + TAMANHO_CASA / 2
+
+        if fruta["tipo"] == "limao":
+            # Rodela de limão: casca verde, polpa clara e os "gomos"
+            pygame.draw.circle(janela, LIMAO_CASCA, (cx, cy), 22)
+            pygame.draw.circle(janela, LIMAO_POLPA, (cx, cy), 18)
+            for gomo in range(6):
+                angulo = gomo * math.pi / 3
+                ponta = (cx + math.cos(angulo) * 17, cy + math.sin(angulo) * 17)
+                pygame.draw.line(janela, LIMAO_CASCA, (cx, cy), ponta, 2)
+        else:
+            # Morango: corpo vermelho, sementes e folhinhas em cima
+            pygame.draw.ellipse(janela, MORANGO, (cx - 19, cy - 15, 38, 34))
+            for sx, sy in ((-8, -2), (6, -4), (-2, 6), (9, 7), (-10, 9), (1, -9)):
+                pygame.draw.circle(janela, SEMENTE, (cx + sx, cy + sy), 2)
+            pygame.draw.ellipse(janela, MORANGO_FOLHA, (cx - 14, cy - 20, 14, 9))
+            pygame.draw.ellipse(janela, MORANGO_FOLHA, (cx, cy - 20, 14, 9))
+
+
 # Escreve um texto centralizado na posição (x, y)
 def escrever(texto, fonte, cor, x, y):
     imagem = fonte.render(texto, True, cor)
     janela.blit(imagem, imagem.get_rect(center=(x, y)))
 
 
-# Desenha o jogo inteiro (chão, garçons, jogador, pontos)
+# Desenha o jogo inteiro (chão, frutas, garçons, jogador, pontos)
 def desenhar_jogo(altura_no_ar, esticar):
     desenhar_tabuleiro()
+    for fruta in frutas:
+        desenhar_fruta(fruta)
     for garcom in garcons:
         desenhar_garcom(garcom)
 
     jogador_y_na_tela = jogador_y - camera_y          # mundo -> tela
-    if estado == "game_over":
+    if estado == "game_over" and caiu_no_rio:
+        desenhar_respingo(jogador_x, jogador_y_na_tela)
+    elif estado == "game_over":
         # Achatado! (esticar negativo deixa o corpo largo e baixinho)
         desenhar_jogador(jogador_x, jogador_y_na_tela, 0, -16)
     else:
@@ -244,6 +365,9 @@ def desenhar_jogo(altura_no_ar, esticar):
         pygame.draw.rect(janela, (0, 255, 255), hitbox_jogador().move(0, -camera_y), 2)
         for garcom in garcons:
             pygame.draw.rect(janela, (255, 0, 255), hitbox_garcom(garcom).move(0, -camera_y), 2)
+        for fruta in frutas:
+            area = (fruta["x"], fruta["linha"] * TAMANHO_CASA - camera_y, fruta["largura"], TAMANHO_CASA)
+            pygame.draw.rect(janela, (255, 255, 0), area, 2)
 
     # Pontos no canto da tela
     escrever(str(pontos), fonte_grande, BRANCO, 60, 45)
@@ -304,12 +428,12 @@ while rodando:
         if estado == "loja":
             if evento.key == pygame.K_SPACE:
                 # Começa uma rodada nova: jogador no início...
-                jogador_coluna = COLUNAS // 2
                 jogador_linha = 0
-                jogador_x = jogador_coluna * TAMANHO_CASA
+                jogador_x = (COLUNAS // 2) * TAMANHO_CASA
                 jogador_y = jogador_linha * TAMANHO_CASA
                 pulando = False
                 pontos = 0
+                caiu_no_rio = False
 
                 # ...câmera com o jogador na 4ª linha de baixo para cima...
                 camera_y = jogador_y - (LINHAS_NA_TELA - 4) * TAMANHO_CASA
@@ -317,6 +441,7 @@ while rodando:
                 # ...e um mundo novo, sorteado do zero
                 faixas = {linha_da_base_da_tela() + 1: "seguro"}
                 garcons = []
+                frutas = []
                 gerar_faixas_ate(linha_do_topo_da_tela() - 2)
 
                 estado = "jogando"
@@ -326,28 +451,36 @@ while rodando:
                 estado = "loja"
 
         elif estado == "jogando" and not pulando:
-            nova_coluna = jogador_coluna
-            nova_linha = jogador_linha
-
+            # Para que lado andar: dx = colunas, dy = linhas
+            dx, dy = 0, 0
             if evento.key in (pygame.K_UP, pygame.K_w):
-                nova_linha -= 1        # frente
+                dy = -1        # frente
             elif evento.key in (pygame.K_DOWN, pygame.K_s):
-                nova_linha += 1        # trás
+                dy = 1         # trás
             elif evento.key in (pygame.K_LEFT, pygame.K_a):
-                nova_coluna -= 1       # esquerda
+                dx = -1        # esquerda
             elif evento.key in (pygame.K_RIGHT, pygame.K_d):
-                nova_coluna += 1       # direita
+                dx = 1         # direita
 
-            # Não deixa sair pelos lados, nem voltar para baixo da tela
-            nova_coluna = max(0, min(nova_coluna, COLUNAS - 1))
-            nova_linha = min(nova_linha, linha_da_base_da_tela())
+            # Não deixa voltar para baixo da tela
+            nova_linha = min(jogador_linha + dy, linha_da_base_da_tela())
 
-            # Se a casa mudou, começa um pulo
-            if (nova_coluna, nova_linha) != (jogador_coluna, jogador_linha):
-                jogador_coluna = nova_coluna
+            # NOVO: onde ele vai cair no eixo x
+            if faixas.get(nova_linha) == "caipirinha":
+                # no rio: anda uma casa a partir de onde está (sem "encaixar" na coluna)
+                novo_x = jogador_x + dx * TAMANHO_CASA
+            else:
+                # no chão: encaixa na coluna mais próxima
+                novo_x = (round(jogador_x / TAMANHO_CASA) + dx) * TAMANHO_CASA
+
+            # Não deixa sair pelos lados
+            novo_x = max(0, min(novo_x, (COLUNAS - 1) * TAMANHO_CASA))
+
+            # Se o lugar mudou, começa um pulo
+            if (novo_x, nova_linha) != (jogador_x, jogador_linha):
                 jogador_linha = nova_linha
                 origem_x, origem_y = jogador_x, jogador_y
-                destino_x = jogador_coluna * TAMANHO_CASA
+                destino_x = novo_x
                 destino_y = jogador_linha * TAMANHO_CASA
                 tempo_pulo = 0
                 pulando = True
@@ -375,6 +508,7 @@ while rodando:
 
         # Pontos: a linha mais longe que o jogador já chegou
         pontos = max(pontos, -jogador_linha)
+        recorde = max(recorde, pontos)
 
         # Câmera: segue o jogador para cima (nunca volta para baixo)
         alvo_camera = jogador_y - (LINHAS_NA_TELA - 4) * TAMANHO_CASA
@@ -385,6 +519,7 @@ while rodando:
         gerar_faixas_ate(linha_do_topo_da_tela() - 2)
         limite = linha_da_base_da_tela() + 2
         garcons = [g for g in garcons if g["linha"] <= limite]
+        frutas = [f for f in frutas if f["linha"] <= limite]
         for linha in list(faixas):
             if linha > limite:
                 del faixas[linha]
@@ -399,13 +534,42 @@ while rodando:
             elif garcom["velocidade"] < 0 and garcom["x"] < -LARGURA_GARCOM:
                 garcom["x"] = LARGURA
 
+        # NOVO: movimento das frutas
+        # Todas dão a volta pelo mesmo "circuito" (a tela + 3 casas escondidas),
+        # assim fileiras de tamanhos diferentes nunca se encavalam
+        circuito = LARGURA + 3 * TAMANHO_CASA
+        for fruta in frutas:
+            fruta["x"] += fruta["velocidade"] * dt
+
+            if fruta["velocidade"] > 0 and fruta["x"] > LARGURA:
+                fruta["x"] -= circuito
+            elif fruta["velocidade"] < 0 and fruta["x"] < -3 * TAMANHO_CASA:
+                fruta["x"] += circuito
+
+        # NOVO: o rio de caipirinha (só vale quando o jogador já pousou)
+        if faixas.get(jogador_linha) == "caipirinha" and not pulando:
+            fruta = fruta_debaixo_do_jogador()
+            if fruta is None:
+                estado = "game_over"
+                motivo_derrota = "Caiu na caipirinha!"
+                caiu_no_rio = True
+            else:
+                # Em cima da fruta: ela leva o jogador junto
+                jogador_x += fruta["velocidade"] * dt
+
+                # A fruta levou o jogador para fora da tela?
+                centro = jogador_x + TAMANHO_CASA / 2
+                if centro < 0 or centro > LARGURA:
+                    estado = "game_over"
+                    motivo_derrota = "A fruta te levou embora!"
+                    caiu_no_rio = True
+
         # Colisão com os garçons
         for garcom in garcons:
-            if hitbox_jogador().colliderect(hitbox_garcom(garcom)):
+            if estado == "jogando" and hitbox_jogador().colliderect(hitbox_garcom(garcom)):
                 estado = "game_over"
                 motivo_derrota = "Esbarrou no garçom!"
                 pulando = False
-                recorde = max(recorde, pontos)
 
     # --- Desenho: cada tela desenha uma coisa ---
     if estado == "loja":
