@@ -1,6 +1,8 @@
 import pygame
 import math
 import random
+import json     # para salvar o progresso num arquivo
+import os       # para achar a pasta onde o jogo está
 
 pygame.init()
 
@@ -59,12 +61,122 @@ MAQUINA_CORPO = (70, 30, 110)
 MAQUINA_LATERAL = (45, 20, 75)
 MAQUINA_TELA = (60, 220, 230)
 MAQUINA_LETREIRO = (255, 90, 170)
+PRETO = (20, 20, 25)
+VERDE_OK = (90, 210, 110)
+ROXO = (110, 50, 160)
 
 # --- Garçons ---
 LARGURA_GARCOM = 40
 
-# --- Skin: separada do resto, para trocar fácil no futuro ---
-skin_atual = (230, 190, 60)    # por enquanto é só uma cor (dourado)
+# --- NOVO: Raridades (nome que aparece na loja e a cor dela) ---
+RARIDADES = {
+    "raro":     {"nome": "RARO",     "cor": (70, 140, 255)},    # azul
+    "epico":    {"nome": "ÉPICO",    "cor": (170, 80, 230)},    # roxo
+    "lendario": {"nome": "LENDÁRIO", "cor": (255, 140, 30)},    # laranja
+}
+
+# --- NOVO: Personagens em pixel art ---
+# Cada letra é um "pixel" e cada linha tem 12 letras. O "." é transparente.
+# A tabela CORES_PIXEL diz que cor cada letra vira.
+CORES_PIXEL = {
+    "K": (20, 20, 25),      # contorno preto
+    "S": (230, 175, 130),   # pele
+    "W": (245, 245, 245),   # branco
+    "H": (245, 190, 40),    # cabelo loiro
+    "h": (90, 60, 30),      # cabelo castanho (lateral raspada)
+    "Y": (250, 215, 40),    # camisa amarela
+    "G": (30, 150, 70),     # verde
+    "B": (30, 70, 170),     # azul (calção)
+    "g": (170, 170, 180),   # cinza claro (chuteira)
+    "c": (180, 180, 185),   # cabelo grisalho
+    "D": (50, 50, 60),      # cinza escuro (camisa / calça)
+    "T": (120, 120, 130),   # gravata
+    "P": (230, 110, 160),   # tubo de ensaio rosa
+    "N": (35, 40, 75),      # azul-noite (uniforme)
+    "V": (120, 50, 160),    # roxo (capa)
+    "R": (200, 40, 50),     # vermelho (cinto)
+    "O": (250, 200, 60),    # dourado (emblema)
+}
+
+CRAQUE = [
+    "...KKKKKK...",
+    "..KHHHHHHK..",
+    ".KhHHHHHHhK.",
+    ".KhSSSSSShK.",
+    ".KSSKSSKSSK.",
+    ".KSSKSSKSSK.",
+    ".KSSSSSSSSK.",
+    "..KSSKKSSK..",
+    "...KSSSSK...",
+    ".KKYYGGYYKK.",
+    "KYYYYYYYYYYK",
+    "KSKYYGGYYKSK",
+    "KSKYYYYYYKSK",
+    ".KKBBBBBBKK.",
+    "..KWWK.KWWK.",
+    ".KgggK.KgggK",
+]
+
+PROFESSOR = [
+    "...KKKKKK...",
+    "..KcSSSScK..",
+    ".KcSSSSSScK.",
+    ".KSccSScccK.",
+    ".KSSKSSKSSK.",
+    ".KSSSSSSSSK.",
+    "..KSSKKSSK..",
+    "...KSSSSK...",
+    ".KWWKDTDKWWK",
+    "KWWWWDTDWWPK",
+    "KWWWWDTDWWPK",
+    "KSWWWWWWWWSK",
+    ".KWWWWWWWWK.",
+    ".KWWWWWWWWK.",
+    "..KDDK.KDDK.",
+    ".KKKKK.KKKKK",
+]
+
+VIGILANTE = [
+    "...KKKKKK...",
+    "..KNNNNNNK..",
+    ".KNNNNNNNNK.",
+    ".KNKKKKKKNK.",
+    ".KNKWKKWKNK.",
+    ".KNSSSSSSNK.",
+    "..KSSKKSSK..",
+    ".VKNSSSSNKV.",
+    "VVKNNONNNKVV",
+    "VVNNNNNNNNVV",
+    "VVKNRRRRNKVV",
+    "VVKNNNNNNKVV",
+    "VV.KNNNNK.VV",
+    "V..KNK.KNK.V",
+    "...KNK.KNK..",
+    "..KKKK.KKKK.",
+]
+
+# --- Skins (os personagens que dá para comprar na loja) ---
+# Cada skin é desenhada de UM destes jeitos:
+#   "tipo"    -> desenhada com formas (veja desenhar_personagem)
+#   "desenho" -> pixel art feita com letras (como o CRAQUE ali em cima)
+#   "arquivo" -> uma imagem PNG que você mesmo desenhou (na pasta do jogo)
+SKINS = [
+    {"nome": "Dadinho",        "preco": 0,   "raridade": "raro",     "tipo": "dado"},
+    {"nome": "Ás de Copas",    "preco": 20,  "raridade": "raro",     "tipo": "carta"},
+    {"nome": "Ficha Maluca",   "preco": 40,  "raridade": "raro",     "tipo": "ficha"},
+    {"nome": "Professor",      "preco": 60,  "raridade": "raro",     "desenho": PROFESSOR},     # NOVO
+    {"nome": "Barra de Ouro",  "preco": 90,  "raridade": "epico",    "tipo": "ouro"},
+    {"nome": "Mágico",         "preco": 120, "raridade": "epico",    "tipo": "magico"},
+    {"nome": "Sete da Sorte",  "preco": 150, "raridade": "epico",    "tipo": "sete"},
+    {"nome": "Vigilante",      "preco": 200, "raridade": "epico",    "desenho": VIGILANTE},     # NOVO
+    {"nome": "Craque",         "preco": 400, "raridade": "lendario", "desenho": CRAQUE},        # NOVO
+    # Exemplo de skin feita por você (desenhe um PNG e tire o # da linha abaixo):
+    # {"nome": "Minha Skin", "preco": 300, "raridade": "epico", "arquivo": "minha_skin.png"},
+]
+
+# Arquivo onde o progresso fica salvo (na mesma pasta do jogo)
+PASTA_DO_JOGO = os.path.dirname(os.path.abspath(__file__))
+ARQUIVO_SAVE = os.path.join(PASTA_DO_JOGO, "save.json")
 
 janela = pygame.display.set_mode((LARGURA, ALTURA))
 pygame.display.set_caption("Cassino Crossing")
@@ -76,19 +188,59 @@ fonte_grande = pygame.font.Font(None, 72)
 fonte_media = pygame.font.Font(None, 44)
 fonte_pequena = pygame.font.Font(None, 32)
 fonte_ficha = pygame.font.Font(None, 22)       # o número escrito na ficha
+fonte_raridade = pygame.font.Font(None, 26)    # NOVO: RARO / ÉPICO / LENDÁRIO
 
 # As telas do jogo -> "loja", "jogando" ou "game_over"
 estado = "loja"
 motivo_derrota = ""            # por que perdeu (aparece no game over)
 caiu_no_rio = False            # para desenhar o respingo em vez do achatado
 
+# Lê o progresso salvo. Se o arquivo não existe (primeira vez) ou está
+# estragado, começa do zero.
+def carregar_progresso():
+    try:
+        with open(ARQUIVO_SAVE, "r", encoding="utf-8") as arquivo:
+            return json.load(arquivo)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+# Grava o progresso no arquivo save.json
+def salvar_progresso():
+    dados = {
+        "carteira": carteira,
+        "recorde": recorde,
+        "skins_compradas": skins_compradas,
+        "skin_em_uso": SKINS[skin_equipada]["nome"],    # NOVO: salva pelo NOME
+    }
+    with open(ARQUIVO_SAVE, "w", encoding="utf-8") as arquivo:
+        json.dump(dados, arquivo, ensure_ascii=False, indent=2)
+
+
+progresso = carregar_progresso()
+
 # Carteira = todas as fichas que o jogador já juntou (é o dinheiro da loja)
-carteira = 0
+carteira = progresso.get("carteira", 0)            # vem do arquivo salvo
 fichas_na_rodada = 0           # quantas fichas pegou só nesta rodada
 
 # Pontuação: quantas linhas o jogador avançou
 pontos = 0
-recorde = 0
+recorde = progresso.get("recorde", 0)              # vem do arquivo salvo
+
+# Skins
+skins_compradas = progresso.get("skins_compradas", ["Dadinho"])   # nomes das skins que já são suas
+
+# NOVO: a skin em uso é salva pelo NOME. Assim, se você mudar a ordem da lista
+# SKINS ou criar skins novas, o save continua apontando para a skin certa.
+skin_equipada = 0                  # posição na lista SKINS
+for i, skin in enumerate(SKINS):
+    if skin["nome"] == progresso.get("skin_em_uso"):
+        skin_equipada = i
+skin_na_vitrine = skin_equipada    # qual skin está aparecendo na loja agora
+
+# Mensagem rápida da loja ("Comprou!", "Fichas insuficientes"...)
+mensagem_loja = ""
+tempo_mensagem = 0
 
 # --- O mundo ---
 # As linhas são numeradas a partir do início (linha 0) e,
@@ -189,7 +341,7 @@ def tem_maquina(linha, coluna):
 # Coloca máquinas de fliperama numa faixa de feltro
 def criar_maquinas_da_faixa(linha):
     if linha >= -1:
-        return                                     # NOVO: área de início (5 primeiras linhas): livre
+        return                                     # área de início (5 primeiras linhas): livre
 
     quantidade = random.randint(0, 2 + int(2 * dificuldade()))   # até 4 quando difícil
 
@@ -316,20 +468,132 @@ def desenhar_tabuleiro():
                 pygame.draw.rect(janela, GELO, (gelo_x, y_na_tela + 15 + i * 7, 14, 14), border_radius=3)
 
 
-def desenhar_jogador(x, y, altura_no_ar, esticar):
+# NOVO: transforma uma skin de imagem numa Surface do pygame.
+# Guarda o resultado num dicionário, para não refazer a imagem a cada quadro.
+imagens_prontas = {}
+
+
+def imagem_da_skin(skin):
+    nome = skin["nome"]
+    if nome not in imagens_prontas:
+        if "desenho" in skin:
+            # Pixel art de letras: pinta um pixel para cada letra
+            desenho = skin["desenho"]
+            imagem = pygame.Surface((len(desenho[0]), len(desenho)), pygame.SRCALPHA)
+            for y, linha in enumerate(desenho):
+                for x, letra in enumerate(linha):
+                    if letra != ".":
+                        imagem.set_at((x, y), CORES_PIXEL[letra])
+        elif "arquivo" in skin:
+            # PNG feito por você (com fundo transparente), na pasta do jogo
+            caminho = os.path.join(PASTA_DO_JOGO, skin["arquivo"])
+            imagem = pygame.image.load(caminho).convert_alpha()
+        else:
+            imagem = None          # skin desenhada com formas (dado, carta...)
+        imagens_prontas[nome] = imagem
+    return imagens_prontas[nome]
+
+
+# Desenha QUALQUER personagem, em QUALQUER superfície
+#   tela -> onde desenhar (a janela do jogo, ou uma imagem para a vitrine da loja)
+#   skin -> um dicionário da lista SKINS
+#   cor_sombra -> cor da sombra (na loja ela é preta, no jogo é verde-escura)
+def desenhar_personagem(tela, skin, x, y, altura_no_ar, esticar, cor_sombra=SOMBRA):
     # Sombra: fica sempre no chão e diminui quando o personagem sobe
     tamanho_sombra = 34 - altura_no_ar * 0.6
     pygame.draw.ellipse(
-        janela, SOMBRA,
+        tela, cor_sombra,
         (x + (TAMANHO_CASA - tamanho_sombra) / 2, y + TAMANHO_CASA - 14, tamanho_sombra, 10),
     )
+
+    # NOVO: skins de imagem (pixel art ou PNG). A imagem é esticada e achatada
+    # do mesmo jeito que o corpo das outras skins.
+    imagem = imagem_da_skin(skin)
+    if imagem is not None:
+        largura = 36 - esticar
+        altura = 48 + esticar * 1.3            # personagens de gente são mais altos
+        imagem = pygame.transform.scale(imagem, (int(largura), int(altura)))
+        tela.blit(imagem, imagem.get_rect(midbottom=(x + TAMANHO_CASA / 2, y + TAMANHO_CASA - 8 - altura_no_ar)))
+        return                                 # já desenhou: não precisa fazer o resto
 
     # Corpo: no ar fica mais alto e mais fino (efeito "elástico")
     largura_corpo = 36 - esticar
     altura_corpo = 36 + esticar
-    corpo_x = x + (TAMANHO_CASA - largura_corpo) / 2
-    corpo_y = y + TAMANHO_CASA - 8 - altura_corpo - altura_no_ar
-    pygame.draw.rect(janela, skin_atual, (corpo_x, corpo_y, largura_corpo, altura_corpo), border_radius=6)
+    corpo = pygame.Rect(0, 0, largura_corpo, altura_corpo)
+    corpo.midbottom = (x + TAMANHO_CASA / 2, y + TAMANHO_CASA - 8 - altura_no_ar)
+
+    # Pontos de referência dentro do corpo (em fração da largura/altura).
+    # Usar frações faz os detalhes esticarem e achatarem junto com o corpo.
+    def ponto(fx, fy):
+        return (corpo.x + corpo.width * fx, corpo.y + corpo.height * fy)
+
+    tipo = skin["tipo"]
+
+    if tipo == "dado":
+        # Dado branco: os "olhos" são as bolinhas da face 2
+        pygame.draw.rect(tela, BRANCO, corpo, border_radius=7)
+        pygame.draw.rect(tela, CINZA, corpo, 2, border_radius=7)
+        pygame.draw.circle(tela, PRETO, ponto(0.3, 0.35), 4)
+        pygame.draw.circle(tela, PRETO, ponto(0.7, 0.35), 4)
+        pygame.draw.circle(tela, VERMELHO, ponto(0.5, 0.72), 3)      # boquinha
+
+    elif tipo == "carta":
+        # Carta de baralho: fundo branco, borda vermelha e um coração no meio
+        pygame.draw.rect(tela, BRANCO, corpo, border_radius=4)
+        pygame.draw.rect(tela, VERMELHO, corpo.inflate(-6, -6), 2, border_radius=3)
+        cx, cy = ponto(0.5, 0.62)
+        pygame.draw.circle(tela, VERMELHO, (cx - 4, cy - 3), 5)
+        pygame.draw.circle(tela, VERMELHO, (cx + 4, cy - 3), 5)
+        pygame.draw.polygon(tela, VERMELHO, [(cx - 9, cy - 1), (cx + 9, cy - 1), (cx, cy + 9)])
+        pygame.draw.circle(tela, PRETO, ponto(0.32, 0.25), 3)
+        pygame.draw.circle(tela, PRETO, ponto(0.68, 0.25), 3)
+
+    elif tipo == "ficha":
+        # Ficha de poker de pé: redonda, com faixas brancas
+        pygame.draw.ellipse(tela, FICHA_VERMELHA, corpo)
+        pygame.draw.ellipse(tela, BRANCO, corpo.inflate(-12, -12), 3)
+        for fx, fy in ((0.5, 0.06), (0.5, 0.94), (0.06, 0.5), (0.94, 0.5)):
+            pygame.draw.circle(tela, BRANCO, ponto(fx, fy), 4)
+        pygame.draw.circle(tela, BRANCO, ponto(0.37, 0.42), 5)
+        pygame.draw.circle(tela, BRANCO, ponto(0.63, 0.42), 5)
+        pygame.draw.circle(tela, PRETO, ponto(0.39, 0.44), 2)
+        pygame.draw.circle(tela, PRETO, ponto(0.65, 0.44), 2)
+
+    elif tipo == "ouro":
+        # Barra de ouro: dourada, com a parte de baixo mais escura e um brilho
+        pygame.draw.rect(tela, escurecer(DOURADO, 0.7), corpo, border_radius=5)
+        pygame.draw.rect(tela, DOURADO, (corpo.x, corpo.y, corpo.width, corpo.height * 0.7), border_radius=5)
+        pygame.draw.line(tela, BRANCO, ponto(0.15, 0.55), ponto(0.45, 0.12), 3)
+        pygame.draw.circle(tela, PRETO, ponto(0.62, 0.35), 3)
+        pygame.draw.circle(tela, PRETO, ponto(0.84, 0.35), 3)
+
+    elif tipo == "magico":
+        # Mágico: corpo roxo, olhos e uma cartola preta com faixa vermelha
+        pygame.draw.rect(tela, ROXO, corpo, border_radius=8)
+        pygame.draw.circle(tela, BRANCO, ponto(0.33, 0.45), 5)
+        pygame.draw.circle(tela, BRANCO, ponto(0.67, 0.45), 5)
+        pygame.draw.circle(tela, PRETO, ponto(0.35, 0.47), 2)
+        pygame.draw.circle(tela, PRETO, ponto(0.69, 0.47), 2)
+        aba = pygame.Rect(0, 0, corpo.width + 8, 5)
+        aba.midbottom = (corpo.centerx, corpo.y + 3)
+        copa = pygame.Rect(0, 0, corpo.width * 0.6, 16)
+        copa.midbottom = aba.midtop
+        pygame.draw.rect(tela, PRETO, copa)
+        pygame.draw.rect(tela, VERMELHO, (copa.x, copa.bottom - 5, copa.width, 4))
+        pygame.draw.rect(tela, PRETO, aba, border_radius=2)
+
+    elif tipo == "sete":
+        # Sete da sorte (de caça-níquel): roxo com um 7 dourado
+        pygame.draw.rect(tela, MAQUINA_CORPO, corpo, border_radius=8)
+        pygame.draw.rect(tela, DOURADO, corpo, 2, border_radius=8)
+        pygame.draw.lines(tela, DOURADO, False, [ponto(0.25, 0.4), ponto(0.75, 0.4), ponto(0.42, 0.88)], 5)
+        pygame.draw.circle(tela, BRANCO, ponto(0.35, 0.2), 3)
+        pygame.draw.circle(tela, BRANCO, ponto(0.65, 0.2), 3)
+
+
+# Desenha o jogador com a skin que ele está usando
+def desenhar_jogador(x, y, altura_no_ar, esticar):
+    desenhar_personagem(janela, SKINS[skin_equipada], x, y, altura_no_ar, esticar)
 
 
 # Respingo quando o jogador cai na caipirinha
@@ -543,25 +807,87 @@ def desenhar_game_over():
     escrever("Aperte ESPAÇO para voltar à loja", fonte_pequena, CINZA, LARGURA / 2, ALTURA / 2 + 120)
 
 
-# Tela da LOJA (por enquanto só a estrutura: as compras vêm nos próximos passos)
+# Painel com moldura e título (NOVO: a cor da moldura pode mudar)
+def desenhar_painel(painel, titulo, cor_borda=DOURADO):
+    pygame.draw.rect(janela, PAINEL, painel, border_radius=16)
+    pygame.draw.rect(janela, cor_borda, painel, 3, border_radius=16)   # borda
+    escrever(titulo, fonte_media, cor_borda, painel.centerx, painel.top + 35)
+
+
+# A vitrine de skins (painel da esquerda da loja)
+def desenhar_vitrine_de_skins(painel):
+    skin = SKINS[skin_na_vitrine]
+    raridade = RARIDADES[skin["raridade"]]          # NOVO
+    desenhar_painel(painel, "SKINS", raridade["cor"])   # NOVO: moldura da cor da raridade
+
+    tempo = pygame.time.get_ticks() / 1000
+    centro_personagem = (painel.centerx, painel.top + 130)
+
+    # NOVO: skin lendária ganha um brilho laranja pulsando atrás dela
+    if skin["raridade"] == "lendario":
+        brilho = pygame.Surface((180, 180), pygame.SRCALPHA)
+        forca = 60 + 40 * math.sin(tempo * 3)           # vai de 20 a 100 (transparência)
+        for raio, transparencia in ((85, forca * 0.4), (65, forca * 0.7), (45, forca)):
+            pygame.draw.circle(brilho, (*raridade["cor"], int(transparencia)), (90, 90), raio)
+        janela.blit(brilho, brilho.get_rect(center=centro_personagem))
+
+    # 1) O personagem, pulando sem parar, desenhado numa imagem pequena e AMPLIADO
+    arco = abs(math.sin(tempo * 4))
+    imagem = pygame.Surface((TAMANHO_CASA, TAMANHO_CASA + 30), pygame.SRCALPHA)   # fundo transparente
+    desenhar_personagem(imagem, skin, 0, 30, arco * 14, arco * 5, cor_sombra=PRETO)
+    imagem = pygame.transform.scale(imagem, (imagem.get_width() * 2, imagem.get_height() * 2))
+    janela.blit(imagem, imagem.get_rect(center=centro_personagem))
+
+    # 2) Setinhas para os lados
+    escrever("<", fonte_grande, DOURADO, painel.left + 35, painel.top + 140)
+    escrever(">", fonte_grande, DOURADO, painel.right - 35, painel.top + 140)
+
+    # 3) Nome
+    escrever(skin["nome"], fonte_media, BRANCO, painel.centerx, painel.top + 222)
+
+    # NOVO: 4) Etiqueta da raridade (um retângulo colorido com o nome dentro)
+    texto = fonte_raridade.render(raridade["nome"], True, BRANCO)
+    etiqueta = texto.get_rect(center=(painel.centerx, painel.top + 252)).inflate(18, 6)
+    pygame.draw.rect(janela, raridade["cor"], etiqueta, border_radius=8)
+    janela.blit(texto, texto.get_rect(center=etiqueta.center))
+
+    # 5) Situação: em uso / já comprada / preço
+    if skin_na_vitrine == skin_equipada:
+        escrever("EM USO", fonte_pequena, VERDE_OK, painel.centerx, painel.top + 278)
+    elif skin["nome"] in skins_compradas:
+        escrever("ENTER para usar", fonte_pequena, BRANCO, painel.centerx, painel.top + 278)
+    else:
+        cor = DOURADO if carteira >= skin["preco"] else CINZA   # cinza = não dá para comprar
+        escrever(f"{skin['preco']} fichas - ENTER compra", fonte_pequena, cor, painel.centerx, painel.top + 278)
+
+    # 6) Bolinhas mostrando em qual skin da lista você está (na cor da raridade de cada uma)
+    for i in range(len(SKINS)):
+        x = painel.centerx + (i - (len(SKINS) - 1) / 2) * 16
+        cor = RARIDADES[SKINS[i]["raridade"]]["cor"]
+        pygame.draw.circle(janela, cor, (x, painel.top + 298), 5 if i == skin_na_vitrine else 2)
+
+
+# Tela da LOJA
 def desenhar_loja():
     janela.fill(FUNDO_LOJA)
 
-    escrever("LOJA", fonte_enorme, DOURADO, LARGURA / 2, 70)
+    escrever("LOJA", fonte_enorme, DOURADO, LARGURA / 2, 60)
 
     # Carteira: quantas fichas o jogador tem para gastar
-    desenhar_contador_de_fichas(carteira, LARGURA / 2 - 30, 140)
+    desenhar_contador_de_fichas(carteira, LARGURA / 2 - 30, 125)
 
     # Dois painéis: um para skins, outro para poderes
-    painel_skins = pygame.Rect(60, 190, 320, 300)
-    painel_poderes = pygame.Rect(420, 190, 320, 300)
-    for painel, titulo in ((painel_skins, "SKINS"), (painel_poderes, "PODERES")):
-        pygame.draw.rect(janela, PAINEL, painel, border_radius=16)
-        pygame.draw.rect(janela, DOURADO, painel, 3, border_radius=16)   # borda
-        escrever(titulo, fonte_media, DOURADO, painel.centerx, painel.top + 40)
-        escrever("em breve...", fonte_pequena, CINZA, painel.centerx, painel.centery + 20)
+    desenhar_vitrine_de_skins(pygame.Rect(60, 165, 320, 310))
+    painel_poderes = pygame.Rect(420, 165, 320, 310)
+    desenhar_painel(painel_poderes, "PODERES")
+    escrever("em breve...", fonte_pequena, CINZA, painel_poderes.centerx, painel_poderes.centery + 10)
 
-    escrever("Aperte ESPAÇO para jogar", fonte_media, BRANCO, LARGURA / 2, 545)
+    # Mensagem rápida (some sozinha depois de um tempinho)
+    if tempo_mensagem > 0:
+        escrever(mensagem_loja, fonte_pequena, DOURADO, LARGURA / 2, 498)
+
+    escrever("Aperte ESPAÇO para jogar", fonte_media, BRANCO, LARGURA / 2, 540)
+    escrever("<- -> escolher skin     ENTER comprar / usar", fonte_pequena, CINZA, LARGURA / 2, 578)
 
 
 rodando = True
@@ -571,6 +897,7 @@ while rodando:
     # --- Eventos ---
     for evento in pygame.event.get():
         if evento.type == pygame.QUIT:
+            salvar_progresso()         # salva antes de fechar
             rodando = False
 
         if evento.type != pygame.KEYDOWN:
@@ -578,7 +905,30 @@ while rodando:
 
         # Cada tela responde às teclas de um jeito
         if estado == "loja":
-            if evento.key == pygame.K_SPACE:
+            # Setas trocam a skin da vitrine (o % faz dar a volta na lista)
+            if evento.key in (pygame.K_LEFT, pygame.K_a):
+                skin_na_vitrine = (skin_na_vitrine - 1) % len(SKINS)
+            elif evento.key in (pygame.K_RIGHT, pygame.K_d):
+                skin_na_vitrine = (skin_na_vitrine + 1) % len(SKINS)
+
+            # ENTER compra (se ainda não tem) ou passa a usar (se já tem)
+            elif evento.key == pygame.K_RETURN:
+                skin = SKINS[skin_na_vitrine]
+                if skin["nome"] in skins_compradas:
+                    skin_equipada = skin_na_vitrine
+                    mensagem_loja = f"Usando: {skin['nome']}"
+                elif carteira >= skin["preco"]:
+                    carteira -= skin["preco"]
+                    skins_compradas.append(skin["nome"])
+                    skin_equipada = skin_na_vitrine
+                    mensagem_loja = f"Comprado: {skin['nome']}!"
+                else:
+                    falta = skin["preco"] - carteira
+                    mensagem_loja = f"Faltam {falta} fichas para comprar essa skin"
+                tempo_mensagem = 2             # a mensagem fica 2 segundos na tela
+                salvar_progresso()
+
+            elif evento.key == pygame.K_SPACE:
                 # Começa uma rodada nova: jogador no início...
                 jogador_linha = 0
                 jogador_x = (COLUNAS // 2) * TAMANHO_CASA
@@ -603,6 +953,8 @@ while rodando:
 
         elif estado == "game_over":
             if evento.key == pygame.K_SPACE:
+                salvar_progresso()     # guarda as fichas e o recorde da rodada
+                skin_na_vitrine = skin_equipada
                 estado = "loja"
 
         elif estado == "jogando" and not pulando:
@@ -643,6 +995,9 @@ while rodando:
                 destino_y = jogador_linha * TAMANHO_CASA
                 tempo_pulo = 0
                 pulando = True
+
+    # O relógio da mensagem da loja vai diminuindo até sumir
+    tempo_mensagem -= dt
 
     # --- Atualização (só quando está jogando) ---
     altura_no_ar = 0
