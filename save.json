@@ -1,8 +1,12 @@
 {
-  "carteira": 26,
+  "carteira": 24,
   "recorde": 54,
   "skins_compradas": [
     "Dadinho"
   ],
-  "skin_em_uso": "Dadinho"
+  "skin_em_uso": "Dadinho",
+  "poderes_guardados": {
+    "salto": 0,
+    "quebra": 0
+  }
 }

@@ -68,14 +68,14 @@ ROXO = (110, 50, 160)
 # --- Garçons ---
 LARGURA_GARCOM = 40
 
-# --- NOVO: Raridades (nome que aparece na loja e a cor dela) ---
+# --- Raridades (nome que aparece na loja e a cor dela) ---
 RARIDADES = {
     "raro":     {"nome": "RARO",     "cor": (70, 140, 255)},    # azul
     "epico":    {"nome": "ÉPICO",    "cor": (170, 80, 230)},    # roxo
     "lendario": {"nome": "LENDÁRIO", "cor": (255, 140, 30)},    # laranja
 }
 
-# --- NOVO: Personagens em pixel art ---
+# --- Personagens em pixel art ---
 # Cada letra é um "pixel" e cada linha tem 12 letras. O "." é transparente.
 # A tabela CORES_PIXEL diz que cor cada letra vira.
 CORES_PIXEL = {
@@ -96,6 +96,10 @@ CORES_PIXEL = {
     "V": (120, 50, 160),    # roxo (capa)
     "R": (200, 40, 50),     # vermelho (cinto)
     "O": (250, 200, 60),    # dourado (emblema)
+    "M": (115, 70, 40),     # NOVO: cabelo castanho penteado para trás
+    "b": (95, 58, 32),      # NOVO: barba
+    "L": (190, 215, 240),   # NOVO: camisa azul-clara
+    "A": (70, 100, 150),    # NOVO: gravata azul
 }
 
 CRAQUE = [
@@ -155,6 +159,26 @@ VIGILANTE = [
     "..KKKK.KKKK.",
 ]
 
+# NOVO
+MAGNATA = [
+    "...KKKKKK...",
+    "..KMMMMMMK..",
+    ".KMMMMMMMMK.",
+    ".KMSSSSSSMK.",
+    ".KSSKSSKSSK.",
+    ".KSSSSSSSSK.",
+    ".KbSSSSSSbK.",
+    "..KbbWWbbK..",
+    "...KbbbbK...",
+    ".KNNLAALNNK.",
+    "KNNNLAALNNNK",
+    "KNNNNAANNNNK",
+    "KSKNNAANNKSK",
+    ".KKNNNNNNKK.",
+    "..KNNK.KNNK.",
+    ".KKKKK.KKKKK",
+]
+
 # --- Skins (os personagens que dá para comprar na loja) ---
 # Cada skin é desenhada de UM destes jeitos:
 #   "tipo"    -> desenhada com formas (veja desenhar_personagem)
@@ -164,15 +188,29 @@ SKINS = [
     {"nome": "Dadinho",        "preco": 0,   "raridade": "raro",     "tipo": "dado"},
     {"nome": "Ás de Copas",    "preco": 20,  "raridade": "raro",     "tipo": "carta"},
     {"nome": "Ficha Maluca",   "preco": 40,  "raridade": "raro",     "tipo": "ficha"},
-    {"nome": "Professor",      "preco": 60,  "raridade": "raro",     "desenho": PROFESSOR},     # NOVO
+    {"nome": "Professor",      "preco": 60,  "raridade": "raro",     "desenho": PROFESSOR},
     {"nome": "Barra de Ouro",  "preco": 90,  "raridade": "epico",    "tipo": "ouro"},
     {"nome": "Mágico",         "preco": 120, "raridade": "epico",    "tipo": "magico"},
     {"nome": "Sete da Sorte",  "preco": 150, "raridade": "epico",    "tipo": "sete"},
-    {"nome": "Vigilante",      "preco": 200, "raridade": "epico",    "desenho": VIGILANTE},     # NOVO
-    {"nome": "Craque",         "preco": 400, "raridade": "lendario", "desenho": CRAQUE},        # NOVO
+    {"nome": "Vigilante",      "preco": 200, "raridade": "epico",    "desenho": VIGILANTE},
+    {"nome": "Craque",         "preco": 400, "raridade": "lendario", "desenho": CRAQUE},
+    {"nome": "Magnata",        "preco": 500, "raridade": "lendario", "desenho": MAGNATA},       # NOVO
     # Exemplo de skin feita por você (desenhe um PNG e tire o # da linha abaixo):
     # {"nome": "Minha Skin", "preco": 300, "raridade": "epico", "arquivo": "minha_skin.png"},
 ]
+
+# --- NOVO: Poderes (comprados na loja, valem para a PRÓXIMA rodada) ---
+PODERES = [
+    {"id": "salto",  "nome": "Salto Duplo", "preco": 15, "tecla_compra": "1",
+     "descricao": "SHIFT + seta: pula 2 casas"},
+    {"id": "quebra", "nome": "Quebra-Tudo", "preco": 25, "tecla_compra": "2",
+     "descricao": "E: destrói o que estiver perto"},
+]
+MAX_CARGAS = 5                 # quantas cargas de cada poder dá para guardar
+DURACAO_SALTO_DUPLO = 0.22     # o salto duplo demora mais...
+ALTURA_SALTO_DUPLO = 40        # ...e vai mais alto
+RAIO_QUEBRA = 2.5 * TAMANHO_CASA   # alcance do Quebra-Tudo (2 casas e meia)
+LARANJA = (255, 140, 30)
 
 # Arquivo onde o progresso fica salvo (na mesma pasta do jogo)
 PASTA_DO_JOGO = os.path.dirname(os.path.abspath(__file__))
@@ -188,7 +226,7 @@ fonte_grande = pygame.font.Font(None, 72)
 fonte_media = pygame.font.Font(None, 44)
 fonte_pequena = pygame.font.Font(None, 32)
 fonte_ficha = pygame.font.Font(None, 22)       # o número escrito na ficha
-fonte_raridade = pygame.font.Font(None, 26)    # NOVO: RARO / ÉPICO / LENDÁRIO
+fonte_raridade = pygame.font.Font(None, 26)    # RARO / ÉPICO / LENDÁRIO
 
 # As telas do jogo -> "loja", "jogando" ou "game_over"
 estado = "loja"
@@ -211,7 +249,8 @@ def salvar_progresso():
         "carteira": carteira,
         "recorde": recorde,
         "skins_compradas": skins_compradas,
-        "skin_em_uso": SKINS[skin_equipada]["nome"],    # NOVO: salva pelo NOME
+        "skin_em_uso": SKINS[skin_equipada]["nome"],    # salva pelo NOME
+        "poderes_guardados": poderes_guardados,         # NOVO
     }
     with open(ARQUIVO_SAVE, "w", encoding="utf-8") as arquivo:
         json.dump(dados, arquivo, ensure_ascii=False, indent=2)
@@ -230,13 +269,20 @@ recorde = progresso.get("recorde", 0)              # vem do arquivo salvo
 # Skins
 skins_compradas = progresso.get("skins_compradas", ["Dadinho"])   # nomes das skins que já são suas
 
-# NOVO: a skin em uso é salva pelo NOME. Assim, se você mudar a ordem da lista
+# A skin em uso é salva pelo NOME. Assim, se você mudar a ordem da lista
 # SKINS ou criar skins novas, o save continua apontando para a skin certa.
 skin_equipada = 0                  # posição na lista SKINS
 for i, skin in enumerate(SKINS):
     if skin["nome"] == progresso.get("skin_em_uso"):
         skin_equipada = i
 skin_na_vitrine = skin_equipada    # qual skin está aparecendo na loja agora
+
+# NOVO: poderes
+# poderes_guardados -> cargas compradas na loja, esperando a próxima rodada
+# cargas            -> cargas que o jogador pode usar na rodada de agora
+poderes_guardados = progresso.get("poderes_guardados", {"salto": 0, "quebra": 0})
+cargas = {"salto": 0, "quebra": 0}
+explosoes = []                     # efeitos visuais do Quebra-Tudo
 
 # Mensagem rápida da loja ("Comprou!", "Fichas insuficientes"...)
 mensagem_loja = ""
@@ -264,6 +310,9 @@ jogador_y = jogador_linha * TAMANHO_CASA
 # Controle do pulo
 pulando = False
 tempo_pulo = 0
+salto_duplo = False                    # NOVO: o pulo de agora é um salto duplo?
+duracao_pulo = DURACAO_PULO            # NOVO: duração e altura do pulo de agora
+altura_pulo = ALTURA_PULO
 origem_x, origem_y = jogador_x, jogador_y
 destino_x, destino_y = jogador_x, jogador_y
 
@@ -381,14 +430,14 @@ def criar_faixa(linha):
         tipo = "seguro"                        # área de início: sempre segura
 
     elif anterior == "seguro":
-        # depois de descanso vem perigo: rio ou garçons
+        # Depois de descanso vem perigo: rio ou garçons
         if random.random() < CHANCE_RIO:
             tipo = "caipirinha"
         else:
             tipo = "garcons"
 
     elif anterior == "caipirinha":
-        # o rio continua (fica mais largo) ou termina numa margem segura
+        # O rio continua (fica mais largo) ou termina numa margem segura
         if seguidas_abaixo(linha, "caipirinha") < MAX_RIO_SEGUIDO and random.random() < CHANCE_RIO_CONTINUAR:
             tipo = "caipirinha"
         else:
@@ -468,7 +517,7 @@ def desenhar_tabuleiro():
                 pygame.draw.rect(janela, GELO, (gelo_x, y_na_tela + 15 + i * 7, 14, 14), border_radius=3)
 
 
-# NOVO: transforma uma skin de imagem numa Surface do pygame.
+# Transforma uma skin de imagem numa Surface do pygame.
 # Guarda o resultado num dicionário, para não refazer a imagem a cada quadro.
 imagens_prontas = {}
 
@@ -506,7 +555,7 @@ def desenhar_personagem(tela, skin, x, y, altura_no_ar, esticar, cor_sombra=SOMB
         (x + (TAMANHO_CASA - tamanho_sombra) / 2, y + TAMANHO_CASA - 14, tamanho_sombra, 10),
     )
 
-    # NOVO: skins de imagem (pixel art ou PNG). A imagem é esticada e achatada
+    # Skins de imagem (pixel art ou PNG). A imagem é esticada e achatada
     # do mesmo jeito que o corpo das outras skins.
     imagem = imagem_da_skin(skin)
     if imagem is not None:
@@ -758,6 +807,7 @@ def desenhar_jogo(altura_no_ar, esticar):
         desenhar_maquina(maquina)
     for garcom in garcons:
         desenhar_garcom(garcom)
+    desenhar_explosoes()                                        # NOVO
 
     jogador_y_na_tela = jogador_y - camera_y          # mundo -> tela
     if estado == "game_over" and caiu_no_rio:
@@ -781,6 +831,7 @@ def desenhar_jogo(altura_no_ar, esticar):
     escrever(str(pontos), fonte_grande, BRANCO, 65, 44)
     desenhar_caixa_placar(LARGURA - 150, 10, 140, 60)
     desenhar_contador_de_fichas(fichas_na_rodada, LARGURA - 120, 40)
+    desenhar_hud_poderes()                                      # NOVO
 
 
 # Caixinha preta meio transparente, para o placar aparecer em qualquer fundo
@@ -797,6 +848,44 @@ def escurecer_tela():
     janela.blit(pelicula, (0, 0))
 
 
+# NOVO: ícone de cada poder (desenhado com formas)
+def desenhar_icone_poder(id_poder, cx, cy):
+    if id_poder == "salto":
+        # Duas setinhas para cima, uma em cima da outra
+        for subir in (0, 10):
+            pygame.draw.lines(janela, VERDE_OK, False,
+                              [(cx - 10, cy + 6 - subir), (cx, cy - 4 - subir), (cx + 10, cy + 6 - subir)], 4)
+    else:
+        # Uma "explosão": círculo laranja com raios em volta
+        for i in range(8):
+            angulo = i * math.pi / 4
+            ponta = (cx + math.cos(angulo) * 15, cy + math.sin(angulo) * 15)
+            pygame.draw.line(janela, DOURADO, (cx, cy), ponta, 3)
+        pygame.draw.circle(janela, LARANJA, (cx, cy), 8)
+
+
+# NOVO: anéis que crescem e somem quando o Quebra-Tudo é usado
+def desenhar_explosoes():
+    for explosao in explosoes:
+        progresso = explosao["tempo"] / 0.4                  # vai de 0 a 1 em 0.4 segundo
+        raio = 10 + progresso * RAIO_QUEBRA
+        centro = (explosao["x"], explosao["y"] - camera_y)
+        pygame.draw.circle(janela, LARANJA, centro, raio, 6)
+        pygame.draw.circle(janela, DOURADO, centro, raio * 0.6, 3)
+
+
+# NOVO: cargas de poder no canto de baixo da tela, durante a rodada
+def desenhar_hud_poderes():
+    desenhar_caixa_placar(10, ALTURA - 60, 330, 50)
+    for i, poder in enumerate(PODERES):
+        x = 40 + i * 165
+        desenhar_icone_poder(poder["id"], x, ALTURA - 35)
+        tecla = "SHIFT" if poder["id"] == "salto" else "E"
+        cor = BRANCO if cargas[poder["id"]] > 0 else CINZA    # cinza = acabou
+        texto = fonte_pequena.render(f"{tecla}  x{cargas[poder['id']]}", True, cor)
+        janela.blit(texto, texto.get_rect(midleft=(x + 22, ALTURA - 34)))
+
+
 # Tela de GAME OVER
 def desenhar_game_over():
     escurecer_tela()
@@ -807,7 +896,7 @@ def desenhar_game_over():
     escrever("Aperte ESPAÇO para voltar à loja", fonte_pequena, CINZA, LARGURA / 2, ALTURA / 2 + 120)
 
 
-# Painel com moldura e título (NOVO: a cor da moldura pode mudar)
+# Painel com moldura e título
 def desenhar_painel(painel, titulo, cor_borda=DOURADO):
     pygame.draw.rect(janela, PAINEL, painel, border_radius=16)
     pygame.draw.rect(janela, cor_borda, painel, 3, border_radius=16)   # borda
@@ -817,13 +906,13 @@ def desenhar_painel(painel, titulo, cor_borda=DOURADO):
 # A vitrine de skins (painel da esquerda da loja)
 def desenhar_vitrine_de_skins(painel):
     skin = SKINS[skin_na_vitrine]
-    raridade = RARIDADES[skin["raridade"]]          # NOVO
-    desenhar_painel(painel, "SKINS", raridade["cor"])   # NOVO: moldura da cor da raridade
+    raridade = RARIDADES[skin["raridade"]]
+    desenhar_painel(painel, "SKINS", raridade["cor"])   # moldura da cor da raridade
 
     tempo = pygame.time.get_ticks() / 1000
     centro_personagem = (painel.centerx, painel.top + 130)
 
-    # NOVO: skin lendária ganha um brilho laranja pulsando atrás dela
+    # Skin lendária ganha um brilho laranja pulsando atrás dela
     if skin["raridade"] == "lendario":
         brilho = pygame.Surface((180, 180), pygame.SRCALPHA)
         forca = 60 + 40 * math.sin(tempo * 3)           # vai de 20 a 100 (transparência)
@@ -845,7 +934,7 @@ def desenhar_vitrine_de_skins(painel):
     # 3) Nome
     escrever(skin["nome"], fonte_media, BRANCO, painel.centerx, painel.top + 222)
 
-    # NOVO: 4) Etiqueta da raridade (um retângulo colorido com o nome dentro)
+    # 4) Etiqueta da raridade (um retângulo colorido com o nome dentro)
     texto = fonte_raridade.render(raridade["nome"], True, BRANCO)
     etiqueta = texto.get_rect(center=(painel.centerx, painel.top + 252)).inflate(18, 6)
     pygame.draw.rect(janela, raridade["cor"], etiqueta, border_radius=8)
@@ -867,6 +956,36 @@ def desenhar_vitrine_de_skins(painel):
         pygame.draw.circle(janela, cor, (x, painel.top + 298), 5 if i == skin_na_vitrine else 2)
 
 
+# NOVO: o painel de poderes (lado direito da loja)
+def desenhar_painel_de_poderes(painel):
+    desenhar_painel(painel, "PODERES")
+    escrever("valem para a próxima rodada", fonte_raridade, CINZA, painel.centerx, painel.top + 63)
+
+    for i, poder in enumerate(PODERES):
+        caixa = pygame.Rect(painel.left + 15, painel.top + 85 + i * 108, painel.width - 30, 98)
+        pygame.draw.rect(janela, FUNDO_LOJA, caixa, border_radius=10)
+
+        desenhar_icone_poder(poder["id"], caixa.left + 30, caixa.top + 30)
+        texto = fonte_pequena.render(poder["nome"], True, BRANCO)
+        janela.blit(texto, texto.get_rect(midleft=(caixa.left + 55, caixa.top + 22)))
+        texto = fonte_raridade.render(poder["descricao"], True, CINZA)
+        janela.blit(texto, texto.get_rect(midleft=(caixa.left + 55, caixa.top + 46)))
+
+        # Quantas cargas já estão guardadas, em bolinhas
+        guardadas = poderes_guardados[poder["id"]]
+        for carga in range(MAX_CARGAS):
+            cor = VERDE_OK if carga < guardadas else PAINEL
+            pygame.draw.circle(janela, cor, (caixa.left + 22 + carga * 16, caixa.bottom - 20), 6)
+
+        # Tecla e preço
+        if guardadas >= MAX_CARGAS:
+            texto = fonte_raridade.render("CHEIO", True, VERDE_OK)
+        else:
+            cor = DOURADO if carteira >= poder["preco"] else CINZA
+            texto = fonte_raridade.render(f"[{poder['tecla_compra']}]  {poder['preco']} fichas", True, cor)
+        janela.blit(texto, texto.get_rect(midright=(caixa.right - 12, caixa.bottom - 20)))
+
+
 # Tela da LOJA
 def desenhar_loja():
     janela.fill(FUNDO_LOJA)
@@ -878,16 +997,14 @@ def desenhar_loja():
 
     # Dois painéis: um para skins, outro para poderes
     desenhar_vitrine_de_skins(pygame.Rect(60, 165, 320, 310))
-    painel_poderes = pygame.Rect(420, 165, 320, 310)
-    desenhar_painel(painel_poderes, "PODERES")
-    escrever("em breve...", fonte_pequena, CINZA, painel_poderes.centerx, painel_poderes.centery + 10)
+    desenhar_painel_de_poderes(pygame.Rect(420, 165, 320, 310))      # NOVO
 
     # Mensagem rápida (some sozinha depois de um tempinho)
     if tempo_mensagem > 0:
         escrever(mensagem_loja, fonte_pequena, DOURADO, LARGURA / 2, 498)
 
     escrever("Aperte ESPAÇO para jogar", fonte_media, BRANCO, LARGURA / 2, 540)
-    escrever("<- -> escolher skin     ENTER comprar / usar", fonte_pequena, CINZA, LARGURA / 2, 578)
+    escrever("<- -> skin    ENTER compra/usa skin    1 / 2 compra poder", fonte_pequena, CINZA, LARGURA / 2, 578)
 
 
 rodando = True
@@ -928,6 +1045,25 @@ while rodando:
                 tempo_mensagem = 2             # a mensagem fica 2 segundos na tela
                 salvar_progresso()
 
+            # NOVO: teclas 1 e 2 compram uma carga de poder
+            elif evento.key in (pygame.K_1, pygame.K_2, pygame.K_KP1, pygame.K_KP2):
+                if evento.key in (pygame.K_1, pygame.K_KP1):
+                    poder = PODERES[0]
+                else:
+                    poder = PODERES[1]
+
+                if poderes_guardados[poder["id"]] >= MAX_CARGAS:
+                    mensagem_loja = f"Você já tem o máximo de {poder['nome']}"
+                elif carteira >= poder["preco"]:
+                    carteira -= poder["preco"]
+                    poderes_guardados[poder["id"]] += 1
+                    mensagem_loja = f"+1 {poder['nome']} para a próxima rodada!"
+                else:
+                    falta = poder["preco"] - carteira
+                    mensagem_loja = f"Faltam {falta} fichas para esse poder"
+                tempo_mensagem = 2
+                salvar_progresso()
+
             elif evento.key == pygame.K_SPACE:
                 # Começa uma rodada nova: jogador no início...
                 jogador_linha = 0
@@ -937,6 +1073,13 @@ while rodando:
                 pontos = 0
                 fichas_na_rodada = 0
                 caiu_no_rio = False
+                salto_duplo = False
+
+                # NOVO: os poderes guardados viram as cargas desta rodada
+                cargas = dict(poderes_guardados)          # dict(...) faz uma CÓPIA
+                poderes_guardados = {"salto": 0, "quebra": 0}
+                explosoes = []
+                salvar_progresso()
 
                 # ...câmera com o jogador na 4ª linha de baixo para cima...
                 camera_y = jogador_y - (LINHAS_NA_TELA - 4) * TAMANHO_CASA
@@ -957,6 +1100,22 @@ while rodando:
                 skin_na_vitrine = skin_equipada
                 estado = "loja"
 
+        # NOVO: tecla E usa o Quebra-Tudo (funciona até no meio do pulo)
+        elif estado == "jogando" and evento.key == pygame.K_e:
+            if cargas["quebra"] > 0:
+                cargas["quebra"] -= 1
+                centro_x = jogador_x + TAMANHO_CASA / 2
+                centro_y = jogador_y + TAMANHO_CASA / 2
+
+                # Mantém só o que está LONGE do jogador (math.dist = distância entre dois pontos)
+                garcons = [g for g in garcons
+                           if math.dist((g["x"] + LARGURA_GARCOM / 2, g["linha"] * TAMANHO_CASA + TAMANHO_CASA / 2),
+                                        (centro_x, centro_y)) > RAIO_QUEBRA]
+                maquinas = [m for m in maquinas
+                            if math.dist((m["coluna"] * TAMANHO_CASA + TAMANHO_CASA / 2, m["linha"] * TAMANHO_CASA + TAMANHO_CASA / 2),
+                                         (centro_x, centro_y)) > RAIO_QUEBRA]
+                explosoes.append({"x": centro_x, "y": centro_y, "tempo": 0})
+
         elif estado == "jogando" and not pulando:
             # Para que lado andar: dx = colunas, dy = linhas
             dx, dy = 0, 0
@@ -969,15 +1128,22 @@ while rodando:
             elif evento.key in (pygame.K_RIGHT, pygame.K_d):
                 dx = 1         # direita
 
+            # NOVO: SHIFT apertado + tem carga de Salto Duplo -> anda 2 casas
+            shift_apertado = pygame.key.get_mods() & pygame.KMOD_SHIFT
+            usando_salto_duplo = shift_apertado and cargas["salto"] > 0 and (dx != 0 or dy != 0)
+            if usando_salto_duplo:
+                dx *= 2
+                dy *= 2
+
             # Não deixa voltar para baixo da tela
             nova_linha = min(jogador_linha + dy, linha_da_base_da_tela())
 
             # Onde ele vai cair no eixo x
             if faixas.get(nova_linha) == "caipirinha":
-                # no rio: anda uma casa a partir de onde está (sem "encaixar" na coluna)
+                # No rio: anda uma casa a partir de onde está (sem "encaixar" na coluna)
                 novo_x = jogador_x + dx * TAMANHO_CASA
             else:
-                # no chão: encaixa na coluna mais próxima
+                # No chão: encaixa na coluna mais próxima
                 novo_x = (round(jogador_x / TAMANHO_CASA) + dx) * TAMANHO_CASA
 
             # Não deixa sair pelos lados
@@ -996,6 +1162,16 @@ while rodando:
                 tempo_pulo = 0
                 pulando = True
 
+                # NOVO: o salto duplo é mais alto e mais demorado (e gasta uma carga)
+                salto_duplo = usando_salto_duplo
+                if salto_duplo:
+                    cargas["salto"] -= 1
+                    duracao_pulo = DURACAO_SALTO_DUPLO
+                    altura_pulo = ALTURA_SALTO_DUPLO
+                else:
+                    duracao_pulo = DURACAO_PULO
+                    altura_pulo = ALTURA_PULO
+
     # O relógio da mensagem da loja vai diminuindo até sumir
     tempo_mensagem -= dt
 
@@ -1006,7 +1182,7 @@ while rodando:
         # Pulo
         if pulando:
             tempo_pulo += dt
-            progresso = min(tempo_pulo / DURACAO_PULO, 1)   # vai de 0 (início) a 1 (fim)
+            progresso = min(tempo_pulo / duracao_pulo, 1)   # vai de 0 (início) a 1 (fim)
 
             # Anda da casa de origem até a de destino
             jogador_x = origem_x + (destino_x - origem_x) * progresso
@@ -1014,11 +1190,17 @@ while rodando:
 
             # Sobe e desce em arco: sin vai de 0 -> 1 -> 0
             arco = math.sin(progresso * math.pi)
-            altura_no_ar = arco * ALTURA_PULO
+            altura_no_ar = arco * altura_pulo
             esticar = arco * 6
 
             if progresso >= 1:
                 pulando = False
+                salto_duplo = False
+
+        # NOVO: as explosões do Quebra-Tudo crescem e somem depois de 0.4 segundo
+        for explosao in explosoes:
+            explosao["tempo"] += dt
+        explosoes = [e for e in explosoes if e["tempo"] < 0.4]
 
         # Pontos: a linha mais longe que o jogador já chegou
         pontos = max(pontos, -jogador_linha)
@@ -1089,8 +1271,10 @@ while rodando:
                     motivo_derrota = "A fruta te levou embora!"
                     caiu_no_rio = True
 
-        # Colisão com os garçons
+        # Colisão com os garçons (NOVO: no salto duplo o jogador passa por cima deles)
         for garcom in garcons:
+            if salto_duplo:
+                break
             if estado == "jogando" and hitbox_jogador().colliderect(hitbox_garcom(garcom)):
                 estado = "game_over"
                 motivo_derrota = "Esbarrou no garçom!"
