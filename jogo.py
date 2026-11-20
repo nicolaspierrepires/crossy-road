@@ -3,7 +3,71 @@ import math
 import random
 import json     # para salvar o progresso num arquivo
 import os       # para achar a pasta onde o jogo está
+pygame.init()
+pygame.mixer.init()
+# --- Música de fundo estilo arcade ---
+import io
+import wave
+from array import array
 
+def tocar_musica():
+    frequencia = 22050
+    duracao_nota = 0.15
+
+    # Melodia: cada número representa uma nota musical
+    melodia = [
+        76, 79, 81, 79, 76, 72, 74, 76,
+        77, 81, 84, 81, 77, 74, 72, 74,
+        79, 83, 86, 83, 79, 77, 76, 74,
+        72, 76, 79, 76, 74, 71, 72, 0,
+    ]
+
+    baixos = [48, 53, 55, 48]
+    amostras = array("h")
+    quantidade = int(frequencia * duracao_nota)
+
+    for indice, nota in enumerate(melodia):
+        nota_baixo = baixos[indice // 8]
+        freq_baixo = 440 * 2 ** ((nota_baixo - 69) / 12)
+
+        for i in range(quantidade):
+            tempo = i / frequencia
+
+            # Suaviza o começo e o fim de cada nota
+            envelope = min(
+                1,
+                i / (frequencia * 0.005),
+                (quantidade - 1 - i) / (frequencia * 0.025)
+            )
+
+            som = 0
+            if nota != 0:
+                freq_nota = 440 * 2 ** ((nota - 69) / 12)
+                onda = 1 if math.sin(2 * math.pi * freq_nota * tempo) >= 0 else -1
+                som += onda * 0.18
+
+            som += math.sin(2 * math.pi * freq_baixo * tempo) * 0.22
+            amostras.append(int(som * envelope * 32767))
+
+    # Cria o áudio na memória, sem precisar baixar uma música
+    import sys
+    if sys.byteorder == "big":
+        amostras.byteswap()
+
+    arquivo = io.BytesIO()
+    with wave.open(arquivo, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(frequencia)
+        audio.writeframes(amostras.tobytes())
+
+    arquivo.seek(0)
+    musica = pygame.mixer.Sound(file=arquivo)
+    musica.set_volume(0.3)
+    musica.play(loops=-1)
+    return musica
+
+musica_fundo = tocar_musica()
 pygame.init()
 
 # --- Configurações da tela ---
