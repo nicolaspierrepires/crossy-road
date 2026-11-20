@@ -709,13 +709,64 @@ def desenhar_jogador(x, y, altura_no_ar, esticar):
     desenhar_personagem(janela, SKINS[skin_equipada], x, y, altura_no_ar, esticar)
 
 
-# Respingo quando o jogador cai na caipirinha
 def desenhar_respingo(x, y):
-    centro = (x + TAMANHO_CASA / 2, y + TAMANHO_CASA / 2)
-    pygame.draw.circle(janela, GELO, centro, 22, 4)
-    pygame.draw.circle(janela, BRANCO, centro, 12, 3)
-    for dx, dy in ((-24, -16), (22, -18), (-14, -26), (16, -28)):
-        pygame.draw.circle(janela, GELO, (centro[0] + dx, centro[1] + dy), 4)
+    t = tempo_queda
+    progresso = min(t / 0.7, 1)
+
+    # Mantém o efeito visível mesmo se cair pela lateral
+    centro_x = max(20, min(x + TAMANHO_CASA / 2, LARGURA - 20))
+    centro_y = y + TAMANHO_CASA / 2
+
+    # Personagem encolhendo, descendo e desaparecendo
+    if progresso < 1:
+        imagem = pygame.Surface((80, 100), pygame.SRCALPHA)
+        desenhar_personagem(
+            imagem, SKINS[skin_equipada], 15, 30, 0, 0
+        )
+
+        escala = 1 - progresso * 0.7
+        imagem = pygame.transform.scale(
+            imagem,
+            (int(80 * escala), int(100 * escala))
+        )
+        imagem.set_alpha(int(255 * (1 - progresso)))
+
+        posicao = imagem.get_rect(
+            center=(centro_x, centro_y + progresso * 20)
+        )
+        janela.blit(imagem, posicao)
+
+    # Ondas que se espalham e desaparecem
+    efeitos = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
+
+    for atraso in (0, 0.18, 0.36):
+        idade = t - atraso
+        if 0 <= idade < 0.7:
+            raio = 8 + idade * 65
+            alpha = int(220 * (1 - idade / 0.7))
+            pygame.draw.ellipse(
+                efeitos, (*GELO, alpha),
+                (centro_x - raio, centro_y - raio / 3,
+                 raio * 2, raio * 2 / 3),
+                2
+            )
+
+    # Gotinhas subindo e caindo
+    if t < 0.65:
+        alpha = int(255 * (1 - t / 0.65))
+
+        for i in range(8):
+            angulo = i * math.pi / 4
+            dx = math.cos(angulo) * 65 * t
+            dy = math.sin(angulo) * 30 * t - 120 * t + 220 * t ** 2
+
+            pygame.draw.circle(
+                efeitos, (*GELO, alpha),
+                (int(centro_x + dx), int(centro_y + dy)),
+                max(1, int(4 * (1 - t / 0.65)))
+            )
+
+    janela.blit(efeitos, (0, 0))
 
 
 def desenhar_garcom(garcom):
@@ -1070,8 +1121,9 @@ def desenhar_loja():
     escrever("Aperte ESPAÇO para jogar", fonte_media, BRANCO, LARGURA / 2, 540)
     escrever("<- -> skin    ENTER compra/usa skin    1 / 2 compra poder", fonte_pequena, CINZA, LARGURA / 2, 578)
 
-
+tempo_queda = 0
 rodando = True
+
 while rodando:
     dt = relogio.tick(60) / 1000   # segundos desde o último quadro
 
@@ -1345,14 +1397,24 @@ while rodando:
                 pulando = False
 
     # --- Desenho: cada tela desenha uma coisa ---
+    if estado != "game_over":
+        tempo_queda = 0
+
     if estado == "loja":
         desenhar_loja()
+
     elif estado == "jogando":
         desenhar_jogo(altura_no_ar, esticar)
-    elif estado == "game_over":
-        desenhar_jogo(0, 0)            # o jogo congelado por trás...
-        desenhar_game_over()           # ...e o GAME OVER por cima
 
+    elif estado == "game_over":
+        if caiu_no_rio:
+            tempo_queda += dt
+
+        desenhar_jogo(0, 0)
+
+        # Espera a animação terminar para mostrar o game over
+        if not caiu_no_rio or tempo_queda >= 1.1:
+            desenhar_game_over()
     pygame.display.update()
 
 pygame.quit()
