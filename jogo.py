@@ -355,7 +355,7 @@ def criar_frutas_da_faixa(linha):
 
     # Frutas andam mais devagar que garçons
     velocidade = random.randint(50, 100) + int(50 * d)
-    if random.random() < 0.5:
+    if linha % 2 == 0:
         velocidade = -velocidade
 
     # Quanto mais longe, fileiras menores (mais difícil de acertar o pulo)

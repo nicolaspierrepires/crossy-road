@@ -1,10 +1,12 @@
 {
-  "carteira": 24,
-  "recorde": 54,
+  "carteira": 205,
+  "recorde": 166,
   "skins_compradas": [
-    "Dadinho"
+    "Dadinho",
+    "Ás de Copas",
+    "Craque"
   ],
-  "skin_em_uso": "Dadinho",
+  "skin_em_uso": "Craque",
   "poderes_guardados": {
     "salto": 0,
     "quebra": 0
