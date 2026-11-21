@@ -713,6 +713,59 @@ def hitbox_garcom(garcom):
     return pygame.Rect(garcom["x"] + 8, garcom["linha"] * TAMANHO_CASA + 12, 24, 30)
 
 
+# Começa um pulo válido, tanto ao tocar quanto ao segurar uma direção.
+def tentar_mover(dx, dy):
+    global jogador_linha, origem_x, origem_y, destino_x, destino_y
+    global tempo_pulo, pulando, salto_duplo, duracao_pulo, altura_pulo
+
+    if estado != "jogando" or pulando or (dx == 0 and dy == 0):
+        return
+
+    # NOVO: SHIFT apertado + tem carga de Salto Duplo -> anda 2 casas
+    shift_apertado = pygame.key.get_mods() & pygame.KMOD_SHIFT
+    usando_salto_duplo = shift_apertado and cargas["salto"] > 0 and (dx != 0 or dy != 0)
+    if usando_salto_duplo:
+        dx *= 2
+        dy *= 2
+
+    # Não deixa voltar para baixo da tela
+    nova_linha = min(jogador_linha + dy, linha_da_base_da_tela())
+
+    # Onde ele vai cair no eixo x
+    if faixas.get(nova_linha) == "caipirinha":
+        # No rio: anda uma casa a partir de onde está (sem "encaixar" na coluna)
+        novo_x = jogador_x + dx * TAMANHO_CASA
+    else:
+        # No chão: encaixa na coluna mais próxima
+        novo_x = (round(jogador_x / TAMANHO_CASA) + dx) * TAMANHO_CASA
+
+    # Não deixa sair pelos lados
+    novo_x = max(0, min(novo_x, (COLUNAS - 1) * TAMANHO_CASA))
+
+    # Tem uma máquina de fliperama lá? Então não pula (fica onde está)
+    if tem_maquina(nova_linha, round(novo_x / TAMANHO_CASA)):
+        return
+
+    # Se o lugar mudou, começa um pulo
+    if (novo_x, nova_linha) != (jogador_x, jogador_linha):
+        jogador_linha = nova_linha
+        origem_x, origem_y = jogador_x, jogador_y
+        destino_x = novo_x
+        destino_y = jogador_linha * TAMANHO_CASA
+        tempo_pulo = 0
+        pulando = True
+
+        # NOVO: o salto duplo é mais alto e mais demorado (e gasta uma carga)
+        salto_duplo = usando_salto_duplo
+        if salto_duplo:
+            cargas["salto"] -= 1
+            duracao_pulo = DURACAO_SALTO_DUPLO
+            altura_pulo = ALTURA_SALTO_DUPLO
+        else:
+            duracao_pulo = DURACAO_PULO
+            altura_pulo = ALTURA_PULO
+
+
 def desenhar_tabuleiro():
     for linha in range(linha_do_topo_da_tela(), linha_da_base_da_tela() + 2):
         tipo = faixas.get(linha)
@@ -1435,49 +1488,7 @@ while rodando:
             elif evento.key in (pygame.K_RIGHT, pygame.K_d):
                 dx = 1         # direita
 
-            # NOVO: SHIFT apertado + tem carga de Salto Duplo -> anda 2 casas
-            shift_apertado = pygame.key.get_mods() & pygame.KMOD_SHIFT
-            usando_salto_duplo = shift_apertado and cargas["salto"] > 0 and (dx != 0 or dy != 0)
-            if usando_salto_duplo:
-                dx *= 2
-                dy *= 2
-
-            # Não deixa voltar para baixo da tela
-            nova_linha = min(jogador_linha + dy, linha_da_base_da_tela())
-
-            # Onde ele vai cair no eixo x
-            if faixas.get(nova_linha) == "caipirinha":
-                # No rio: anda uma casa a partir de onde está (sem "encaixar" na coluna)
-                novo_x = jogador_x + dx * TAMANHO_CASA
-            else:
-                # No chão: encaixa na coluna mais próxima
-                novo_x = (round(jogador_x / TAMANHO_CASA) + dx) * TAMANHO_CASA
-
-            # Não deixa sair pelos lados
-            novo_x = max(0, min(novo_x, (COLUNAS - 1) * TAMANHO_CASA))
-
-            # Tem uma máquina de fliperama lá? Então não pula (fica onde está)
-            if tem_maquina(nova_linha, round(novo_x / TAMANHO_CASA)):
-                continue
-
-            # Se o lugar mudou, começa um pulo
-            if (novo_x, nova_linha) != (jogador_x, jogador_linha):
-                jogador_linha = nova_linha
-                origem_x, origem_y = jogador_x, jogador_y
-                destino_x = novo_x
-                destino_y = jogador_linha * TAMANHO_CASA
-                tempo_pulo = 0
-                pulando = True
-
-                # NOVO: o salto duplo é mais alto e mais demorado (e gasta uma carga)
-                salto_duplo = usando_salto_duplo
-                if salto_duplo:
-                    cargas["salto"] -= 1
-                    duracao_pulo = DURACAO_SALTO_DUPLO
-                    altura_pulo = ALTURA_SALTO_DUPLO
-                else:
-                    duracao_pulo = DURACAO_PULO
-                    altura_pulo = ALTURA_PULO
+            tentar_mover(dx, dy)
 
     # O relógio da mensagem da loja vai diminuindo até sumir
     tempo_mensagem -= dt
@@ -1486,6 +1497,21 @@ while rodando:
     altura_no_ar = 0
     esticar = 0
     if estado == "jogando":
+        # Ao pousar, continua pulando se uma seta ou WASD ainda estiver pressionada.
+        # A leitura vem antes do pulo para validar cada aterrissagem normalmente.
+        if not pulando:
+            teclas = pygame.key.get_pressed()
+            dx, dy = 0, 0
+            if teclas[pygame.K_UP] or teclas[pygame.K_w]:
+                dy = -1
+            elif teclas[pygame.K_DOWN] or teclas[pygame.K_s]:
+                dy = 1
+            elif teclas[pygame.K_LEFT] or teclas[pygame.K_a]:
+                dx = -1
+            elif teclas[pygame.K_RIGHT] or teclas[pygame.K_d]:
+                dx = 1
+            tentar_mover(dx, dy)
+
         # Pulo
         if pulando:
             tempo_pulo += dt
