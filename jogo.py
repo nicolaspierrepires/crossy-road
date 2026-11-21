@@ -208,7 +208,8 @@ CHANCE_RIO_CONTINUAR = 0.6     # chance do rio ficar mais largo (mais uma faixa)
 MAX_RIO_SEGUIDO = 3            # o rio tem no máximo 3 faixas de largura
 DISTANCIA_DIFICIL = 150        # a partir desses pontos o jogo está no máximo da dificuldade
 CHANCE_FICHA = 0.3             # chance de aparecer uma ficha numa faixa de chão
-CHANCE_FICHA_AZUL = 0.15       # das fichas, quantas são azuis (valem 5)
+CHANCE_FICHA_AZUL = 0.15       # 15% das fichas são azuis (valem 5)
+CHANCE_FICHA_VERDE = 0.05      # 5% das fichas são verdes (valem 10)
 
 # Mude para True para ver as caixas de colisão
 MOSTRAR_HITBOX = False
@@ -240,6 +241,7 @@ MORANGO_FOLHA = (40, 140, 50)
 SEMENTE = (250, 220, 120)
 FICHA_VERMELHA = (200, 30, 45)
 FICHA_AZUL = (40, 80, 200)
+FICHA_VERDE = (40, 210, 100)
 MAQUINA_CORPO = (70, 30, 110)
 MAQUINA_LATERAL = (45, 20, 75)
 MAQUINA_TELA = (60, 220, 230)
@@ -256,6 +258,7 @@ RARIDADES = {
     "raro":     {"nome": "RARO",     "cor": (70, 140, 255)},    # azul
     "epico":    {"nome": "ÉPICO",    "cor": (170, 80, 230)},    # roxo
     "lendario": {"nome": "LENDÁRIO", "cor": (255, 140, 30)},    # laranja
+    "unica":    {"nome": "ÚNICA",    "cor": (100, 235, 75)},     # verde vivo
 }
 
 # --- Personagens em pixel art ---
@@ -283,6 +286,10 @@ CORES_PIXEL = {
     "b": (95, 58, 32),      # NOVO: barba
     "L": (190, 215, 240),   # NOVO: camisa azul-clara
     "A": (70, 100, 150),    # NOVO: gravata azul
+    "J": (75, 225, 65),     # cabelo verde do Bobo da Corte
+    "Q": (240, 145, 35),    # camisa laranja do Bobo da Corte
+    "r": (215, 30, 60),     # sorriso vermelho do Bobo da Corte
+    "u": (65, 25, 95),      # sombra do terno roxo do Bobo da Corte
 }
 
 CRAQUE = [
@@ -362,6 +369,26 @@ MAGNATA = [
     ".KKKKK.KKKKK",
 ]
 
+# Bobo da Corte: cabelo verde, rosto branco, sorriso vermelho e terno roxo.
+BOBO_DA_CORTE = [
+    "...KJJJK....",
+    "..KJJJJJJK..",
+    ".KJJJGJJJJK.",
+    ".KGWWWWWWGK.",
+    ".KWKKWWKKWK.",
+    ".KWWWWWWWWK.",
+    ".KrWWWWWWrK.",
+    "..KrrrrrrK..",
+    "...KWWWWK...",
+    ".KVVQGGQVVK.",
+    "KVVVGGQGVVVK",
+    "KWKVGGGGVKWK",
+    ".KVVVVVVVVK.",
+    "..KVVK.KVVK.",
+    "..KuuK.KuuK.",
+    ".KKKKK.KKKKK",
+]
+
 # --- Skins (os personagens que dá para comprar na loja) ---
 # Cada skin é desenhada de UM destes jeitos:
 #   "tipo"    -> desenhada com formas (veja desenhar_personagem)
@@ -378,6 +405,7 @@ SKINS = [
     {"nome": "Vigilante",      "preco": 200, "raridade": "epico",    "desenho": VIGILANTE},
     {"nome": "Craque",         "preco": 400, "raridade": "lendario", "desenho": CRAQUE},
     {"nome": "Magnata",        "preco": 500, "raridade": "lendario", "desenho": MAGNATA},       # NOVO
+    {"nome": "Bobo da Corte",        "preco": 1000, "raridade": "unica", "desenho": BOBO_DA_CORTE},
     # Exemplo de skin feita por você (desenhe um PNG e tire o # da linha abaixo):
     # {"nome": "Minha Skin", "preco": 300, "raridade": "epico", "arquivo": "minha_skin.png"},
 ]
@@ -592,7 +620,11 @@ def talvez_criar_ficha(linha):
     if tem_maquina(linha, coluna):
         return                                     # casa ocupada: fica sem ficha
 
-    if random.random() < CHANCE_FICHA_AZUL:
+    # Um único sorteio mantém a azul com 15% e reserva 5% para a verde.
+    sorteio = random.random()
+    if sorteio < CHANCE_FICHA_VERDE:
+        fichas.append({"linha": linha, "coluna": coluna, "valor": 10, "cor": FICHA_VERDE})
+    elif sorteio < CHANCE_FICHA_VERDE + CHANCE_FICHA_AZUL:
         fichas.append({"linha": linha, "coluna": coluna, "valor": 5, "cor": FICHA_AZUL})
     else:
         fichas.append({"linha": linha, "coluna": coluna, "valor": 1, "cor": FICHA_VERMELHA})
@@ -1166,13 +1198,22 @@ def desenhar_vitrine_de_skins(painel):
     tempo = pygame.time.get_ticks() / 1000
     centro_personagem = (painel.centerx, painel.top + 130)
 
-    # Skin lendária ganha um brilho laranja pulsando atrás dela
-    if skin["raridade"] == "lendario":
+    # Lendárias e únicas ganham um brilho pulsante na cor da raridade.
+    if skin["raridade"] in ("lendario", "unica"):
         brilho = pygame.Surface((180, 180), pygame.SRCALPHA)
         forca = 60 + 40 * math.sin(tempo * 3)           # vai de 20 a 100 (transparência)
         for raio, transparencia in ((85, forca * 0.4), (65, forca * 0.7), (45, forca)):
             pygame.draw.circle(brilho, (*raridade["cor"], int(transparencia)), (90, 90), raio)
         janela.blit(brilho, brilho.get_rect(center=centro_personagem))
+
+    # A raridade ÚNICA também tem pequenos brilhos verdes e roxos na vitrine.
+    if skin["raridade"] == "unica":
+        for i in range(6):
+            angulo = tempo * 1.5 + i * math.pi / 3
+            x = int(centro_personagem[0] + math.cos(angulo) * 75)
+            y = int(centro_personagem[1] + math.sin(angulo) * 55)
+            cor = raridade["cor"] if i % 2 == 0 else (185, 100, 240)
+            pygame.draw.circle(janela, cor, (x, y), 3)
 
     # 1) O personagem, pulando sem parar, desenhado numa imagem pequena e AMPLIADO
     arco = abs(math.sin(tempo * 4))
@@ -1189,7 +1230,8 @@ def desenhar_vitrine_de_skins(painel):
     escrever(skin["nome"], fonte_media, BRANCO, painel.centerx, painel.top + 222)
 
     # 4) Etiqueta da raridade (um retângulo colorido com o nome dentro)
-    texto = fonte_raridade.render(raridade["nome"], True, BRANCO)
+    cor_texto = PRETO if skin["raridade"] == "unica" else BRANCO
+    texto = fonte_raridade.render(raridade["nome"], True, cor_texto)
     etiqueta = texto.get_rect(center=(painel.centerx, painel.top + 252)).inflate(18, 6)
     pygame.draw.rect(janela, raridade["cor"], etiqueta, border_radius=8)
     janela.blit(texto, texto.get_rect(center=etiqueta.center))
