@@ -181,6 +181,12 @@ def atualizar_musica(estado_atual):
         canal_musica.play(musica, loops=-1)
         trilha_atual = nova_trilha
 
+    # Pausa a música junto com o jogo e retoma do mesmo ponto.
+    if estado_atual == "pausado":
+        canal_musica.pause()
+    else:
+        canal_musica.unpause()
+
 pygame.init()
 
 # --- Configurações da tela ---
@@ -405,8 +411,9 @@ fonte_pequena = pygame.font.Font(None, 32)
 fonte_ficha = pygame.font.Font(None, 22)       # o número escrito na ficha
 fonte_raridade = pygame.font.Font(None, 26)    # RARO / ÉPICO / LENDÁRIO
 
-# As telas do jogo -> "loja", "jogando" ou "game_over"
+# As telas do jogo -> "loja", "jogando", "pausado" ou "game_over"
 estado = "loja"
+imagem_pausa = None           # imagem congelada da partida durante a pausa
 motivo_derrota = ""            # por que perdeu (aparece no game over)
 caiu_no_rio = False            # para desenhar o respingo em vez do achatado
 
@@ -1060,6 +1067,9 @@ def desenhar_jogo(altura_no_ar, esticar):
     desenhar_caixa_placar(LARGURA - 150, 10, 140, 60)
     desenhar_contador_de_fichas(fichas_na_rodada, LARGURA - 120, 40)
     desenhar_hud_poderes()                                      # NOVO
+    if estado == "jogando":
+        desenhar_caixa_placar(LARGURA / 2 - 110, 10, 220, 36)
+        escrever("ESPAÇO: pausar", fonte_raridade, BRANCO, LARGURA / 2, 28)
 
 
 # Caixinha preta meio transparente, para o placar aparecer em qualquer fundo
@@ -1112,6 +1122,22 @@ def desenhar_hud_poderes():
         cor = BRANCO if cargas[poder["id"]] > 0 else CINZA    # cinza = acabou
         texto = fonte_pequena.render(f"{tecla}  x{cargas[poder['id']]}", True, cor)
         janela.blit(texto, texto.get_rect(midleft=(x + 22, ALTURA - 34)))
+
+
+# Tela de pausa: conserva a imagem e a posição exata do pulo.
+def desenhar_pausa():
+    global imagem_pausa
+
+    if imagem_pausa is None:
+        arco = math.sin(min(tempo_pulo / duracao_pulo, 1) * math.pi) if pulando else 0
+        desenhar_jogo(arco * altura_pulo, arco * 6)
+        imagem_pausa = janela.copy()
+
+    # Restaura o fundo antes da película para não escurecer a cada quadro.
+    janela.blit(imagem_pausa, (0, 0))
+    escurecer_tela()
+    escrever("PAUSADO", fonte_enorme, DOURADO, LARGURA / 2, ALTURA / 2 - 40)
+    escrever("Aperte ESPAÇO para continuar", fonte_pequena, BRANCO, LARGURA / 2, ALTURA / 2 + 45)
 
 
 # Tela de GAME OVER
@@ -1329,6 +1355,16 @@ while rodando:
                 skin_na_vitrine = skin_equipada
                 estado = "loja"
 
+        # ESPAÇO alterna entre pausar e continuar, inclusive no meio do pulo.
+        elif estado == "pausado":
+            if evento.key == pygame.K_SPACE:
+                estado = "jogando"
+                imagem_pausa = None
+
+        elif estado == "jogando" and evento.key == pygame.K_SPACE:
+            estado = "pausado"
+            imagem_pausa = None
+
         # NOVO: tecla E usa o Quebra-Tudo (funciona até no meio do pulo)
         elif estado == "jogando" and evento.key == pygame.K_e:
             if cargas["quebra"] > 0:
@@ -1521,6 +1557,9 @@ while rodando:
 
     elif estado == "jogando":
         desenhar_jogo(altura_no_ar, esticar)
+
+    elif estado == "pausado":
+        desenhar_pausa()
 
     elif estado == "game_over":
         if caiu_no_rio:
