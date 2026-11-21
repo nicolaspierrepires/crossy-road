@@ -64,10 +64,123 @@ def tocar_musica():
     arquivo.seek(0)
     musica = pygame.mixer.Sound(file=arquivo)
     musica.set_volume(0.3)
-    musica.play(loops=-1)
+    # A melodia original fica guardada para tocar na partida.
     return musica
 
-musica_fundo = tocar_musica()
+
+# --- Música do lobby: jazz de suspense com estilo arcade ---
+def criar_musica_cassino():
+    frequencia = 22050
+    duracao_batida = 60 / 128       # andamento: 128 batidas por minuto
+    amostras = array("h")
+    ruido = random.Random(17)      # não interfere no sorteio do mundo do jogo
+
+    # Melodia em lá menor, com notas de passagem para dar suspense.
+    melodia = [
+        76, 0, 75, 76, 79, 76, 72, 71,
+        69, 0, 72, 75, 76, 0, 67, 68,
+        69, 0, 72, 74, 77, 74, 72, 71,
+        69, 0, 65, 69, 72, 0, 74, 75,
+        76, 0, 79, 81, 79, 76, 72, 71,
+        69, 0, 72, 76, 79, 0, 77, 76,
+        74, 0, 71, 68, 65, 0, 64, 65,
+        68, 71, 74, 77, 76, 74, 71, 68,
+    ]
+
+    # Acordes e baixo lembram uma trilha de cassino/filme de espionagem.
+    acordes = [
+        (57, 60, 64, 66), (57, 60, 64, 66),
+        (62, 65, 69, 71), (62, 65, 69, 71),
+        (53, 57, 60, 64), (53, 57, 60, 64),
+        (52, 56, 59, 62), (52, 56, 59, 65),
+    ]
+    baixos = [45, 45, 38, 38, 41, 41, 40, 40]
+    passos_baixo = [0, 0, 7, 7, 9, 9, 10, 11]
+
+    for indice, nota in enumerate(melodia):
+        compasso = indice // 8
+        passo = indice % 8
+
+        # Alterna notas longas e curtas para criar um ritmo de jazz (swing).
+        duracao = duracao_batida * (0.60 if passo % 2 == 0 else 0.40)
+        quantidade = int(frequencia * duracao)
+        freq_nota = 440 * 2 ** ((nota - 69) / 12) if nota else 0
+        nota_baixo = baixos[compasso] + passos_baixo[passo]
+        freq_baixo = 440 * 2 ** ((nota_baixo - 69) / 12)
+        frequencias_acorde = [440 * 2 ** ((n - 69) / 12) for n in acordes[compasso]]
+
+        for i in range(quantidade):
+            tempo = i / frequencia
+            envelope = min(1, tempo / 0.005, (quantidade - 1 - i) / (frequencia * 0.02))
+
+            # Baixo grave e marcado.
+            fase_baixo = 2 * math.pi * freq_baixo * tempo
+            som = (math.sin(fase_baixo) + 0.25 * math.sin(2 * fase_baixo))
+            som *= 0.18 * math.exp(-tempo * 8)
+
+            # Melodia com um timbre curto, inspirado em piano de arcade.
+            if nota:
+                fase = 2 * math.pi * freq_nota * tempo
+                piano = math.sin(fase) + 0.30 * math.sin(2 * fase) + 0.12 * math.sin(4 * fase)
+                som += piano * 0.14 * math.exp(-tempo * 10)
+
+            # Acordes em contratempos, com um timbre inspirado em metais.
+            if passo in (1, 4, 7):
+                metais = 0
+                for freq in frequencias_acorde:
+                    fase = 2 * math.pi * freq * tempo
+                    metais += math.sin(fase) + 0.22 * math.sin(3 * fase)
+                som += metais * 0.026 * math.exp(-tempo * 5)
+
+            # Percussão: tique do prato, caixa e bumbo.
+            chiado = ruido.uniform(-1, 1)
+            som += chiado * 0.035 * math.exp(-tempo * 65)
+            if passo in (2, 6):
+                som += chiado * 0.10 * math.exp(-tempo * 25)
+            if passo % 2 == 0:
+                fase_bumbo = 2 * math.pi * (55 * tempo + 2 * (1 - math.exp(-tempo * 30)))
+                som += math.sin(fase_bumbo) * 0.12 * math.exp(-tempo * 18)
+
+            som = max(-1, min(1, som * envelope))
+            amostras.append(int(som * 32767))
+
+    import sys
+    if sys.byteorder == "big":
+        amostras.byteswap()
+
+    arquivo = io.BytesIO()
+    with wave.open(arquivo, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(frequencia)
+        audio.writeframes(amostras.tobytes())
+
+    arquivo.seek(0)
+    musica = pygame.mixer.Sound(file=arquivo)
+    musica.set_volume(0.3)
+    return musica
+
+
+# As duas trilhas são criadas uma única vez, antes de começar o jogo.
+musica_lobby = criar_musica_cassino()
+musica_partida = tocar_musica()
+
+# Um único canal para a música: uma trilha substitui a outra.
+pygame.mixer.set_reserved(1)
+canal_musica = pygame.mixer.Channel(0)
+trilha_atual = None
+
+
+def atualizar_musica(estado_atual):
+    global trilha_atual
+
+    # A música da partida continua na derrota até o jogador voltar à loja.
+    nova_trilha = "lobby" if estado_atual == "loja" else "partida"
+    if nova_trilha != trilha_atual:
+        musica = musica_lobby if nova_trilha == "lobby" else musica_partida
+        canal_musica.play(musica, loops=-1)
+        trilha_atual = nova_trilha
+
 pygame.init()
 
 # --- Configurações da tela ---
@@ -1395,6 +1508,9 @@ while rodando:
                 estado = "game_over"
                 motivo_derrota = "Esbarrou no garçom!"
                 pulando = False
+
+    # Atualiza a trilha quando o jogador entra ou sai do lobby.
+    atualizar_musica(estado)
 
     # --- Desenho: cada tela desenha uma coisa ---
     if estado != "game_over":
